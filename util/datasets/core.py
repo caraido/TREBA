@@ -1,6 +1,10 @@
+import json
 import random
 import torch
 from torch.utils.data import Dataset
+import os
+import pickle
+import numpy as np
 
 
 TRAIN = 1
@@ -23,6 +27,7 @@ class TrajectoryDataset(Dataset):
     test_labels = None
 
     label_train_set = True
+    bodyparts=None
 
     def __init__(self, data_config):
         assert hasattr(self, 'name')
@@ -52,6 +57,11 @@ class TrajectoryDataset(Dataset):
             self.subsample = data_config['subsample']
 
         self.config = data_config
+        if 'ctxt_test_save_path' not in self.config:
+            self.config['ctxt_test_save_path'] = f'./util/datasets/{self.name}/labels/ctxt_test_labels.json'
+        if 'test_save_path' not in self.config:
+            self.config['test_save_path'] = f'./util/datasets/{self.name}/labels/test_labels.json'
+
         self.summary = {'name' : self.name}
 
         if 'label_train_set' in data_config:
@@ -63,14 +73,22 @@ class TrajectoryDataset(Dataset):
         # Assertions for train data
         assert hasattr(self, 'train_states') and isinstance(self.train_states, torch.Tensor)
         assert hasattr(self, 'train_actions') and isinstance(self.train_actions, torch.Tensor)
+        assert hasattr(self, 'train_ctxt_states') and isinstance(self.train_ctxt_states, torch.Tensor)
+        assert hasattr(self, 'train_ctxt_actions') and isinstance(self.train_ctxt_actions, torch.Tensor)
         assert self.train_states.size(0) == self.train_actions.size(0)
-        assert self.train_states.size(1)-1 == self.train_actions.size(1) == self.seq_len
+        assert self.train_ctxt_states.size(0) == self.train_ctxt_actions.size(0)
+        assert self.train_states.size(1) - 1 == self.train_actions.size(1) == self.seq_len
+        assert self.train_ctxt_states.size(2) - 1 == self.train_ctxt_actions.size(2) == self.seq_len
 
         # Assertions for test data
         assert hasattr(self, 'test_states') and isinstance(self.test_states, torch.Tensor)
         assert hasattr(self, 'test_actions') and isinstance(self.test_actions, torch.Tensor)
+        assert hasattr(self, 'test_ctxt_states') and isinstance(self.test_ctxt_states, torch.Tensor)
+        assert hasattr(self, 'test_ctxt_actions') and isinstance(self.test_ctxt_actions, torch.Tensor)
         assert self.test_states.size(0) == self.test_actions.size(0)
-        assert self.test_states.size(1)-1 == self.test_actions.size(1) == self.seq_len
+        assert self.test_ctxt_states.size(0) == self.test_ctxt_actions.size(0)
+        assert self.test_states.size(1) - 1 == self.test_actions.size(1) == self.seq_len
+        assert self.test_ctxt_states.size(2) - 1 == self.test_ctxt_actions.size(2) == self.seq_len
 
         # Assertions for ground-truth labels
         if self.hasTrueLabels:
@@ -81,14 +99,66 @@ class TrajectoryDataset(Dataset):
         
         # Apply augmentations
         self._init_augmentations()        
+        # Apply labeling functions: already finished in load data
 
-        # Apply labeling functions
-        self._init_label_functions()
+        if self.config['new_threshold']:
+            new_threshold_path=f'./util/datasets/{self.name}/labels/label_threshold.json'
+            with open(new_threshold_path,'w') as f:
+                thresholds_dict=[{'name':a['name'],'thresholds':a['thresholds']} for a in self.config['labels']]
+                json.dump({'labels':thresholds_dict},f,indent=4)
+
         if self.label_train_set:
-            self.train_lf_labels = self.label_data(self.train_states, self.train_actions, self.train_labels)
+            # TODO: need to move this out
+            train_save_path = f'./util/datasets/{self.name}/labels/train_labels.json'
+            test_save_path=f'./util/datasets/{self.name}/labels/test_labels.json'
+            if os.path.exists(train_save_path):
+                with open(train_save_path, 'rb') as myfile:
+                    self.train_lf_labels = pickle.load(myfile)
+            else:
+                self.train_lf_labels = self.label_data(self.train_states,
+                                                       self.train_actions,
+                                                       self.train_labels)
+                with open(train_save_path, 'wb') as myfile:
+                    pickle.dump(self.train_lf_labels, myfile)
+
+        if os.path.exists(self.config['test_save_path']):
+            print("Loading test set")
+            with open(self.config['test_save_path'], 'rb') as myfile:
+                self.test_lf_labels = pickle.load(myfile)
         else:
-            self.train_lf_labels = []
-        self.test_lf_labels = self.label_data(self.test_states, self.test_actions, self.test_labels)
+            print("Labeling test set")
+            self.test_lf_labels = self.label_data(self.test_states,
+                                                  self.test_actions,
+                                                  self.test_labels)
+            with open(self.config['test_save_path'], 'wb') as myfile:
+                pickle.dump(self.test_lf_labels, myfile)
+
+        # MAY NEED CONTEXT LABELS
+        ctxt_train_save_path = f'./util/datasets/{self.name}/labels/ctxt_train_labels.json'
+        if self.label_train_set:
+            if os.path.exists(ctxt_train_save_path):
+                with open(ctxt_train_save_path, 'rb') as myfile:
+                    self.train_ctxt_lf_labels = pickle.load(myfile)
+            else:
+                self.train_ctxt_lf_labels = self.label_context_data(self.train_ctxt_states,
+                                                                    self.train_ctxt_actions,
+                                                                    None)
+                with open(ctxt_train_save_path, 'wb') as myfile:
+                    pickle.dump(self.train_ctxt_lf_labels, myfile)
+        else:
+            self.train_ctxt_lf_labels = []
+
+        if os.path.exists(self.config['ctxt_test_save_path']):
+            print("Loading test set context")
+            with open(self.config['ctxt_test_save_path'], 'rb') as myfile:
+                self.test_ctxt_lf_labels = pickle.load(myfile)
+        else:
+            print('Labeling test set context')
+            self.test_ctxt_lf_labels = self.label_context_data(self.test_ctxt_states,
+                                                               self.test_ctxt_actions,
+                                                               None)
+            with open(self.config['ctxt_test_save_path'], 'wb') as myfile:
+                pickle.dump(self.test_ctxt_lf_labels, myfile)
 
         # Compute statistics for label distributions
         for lf in self.active_label_functions:
@@ -119,6 +189,10 @@ class TrajectoryDataset(Dataset):
         self.actions = { TRAIN : self.train_actions, EVAL : self.test_actions }
         self.lf_labels = { TRAIN : self.train_lf_labels, EVAL : self.test_lf_labels }
 
+        self.ctxt_states = {TRAIN: self.train_ctxt_states, EVAL: self.test_ctxt_states}
+        self.ctxt_actions = {TRAIN: self.train_ctxt_actions, EVAL: self.test_ctxt_actions}
+        self.ctxt_lf_labels = {TRAIN: self.train_ctxt_lf_labels, EVAL: self.test_ctxt_lf_labels}
+
     def __len__(self):
         return self.states[self.mode].size(0)
 
@@ -126,7 +200,12 @@ class TrajectoryDataset(Dataset):
         states = self.states[self.mode][index,:,:self.state_dim]
         actions = self.actions[self.mode][index,:,:self.action_dim]
         labels_dict = { key: val[index] for key, val in self.lf_labels[self.mode].items() }
-        return states, actions, labels_dict
+
+        ctxt_states = self.ctxt_states[self.mode][index]
+        ctxt_actions = self.ctxt_actions[self.mode][index]
+        ctxt_labels_dict = {key: val[index] for key, val in self.ctxt_lf_labels[self.mode].items()}
+
+        return states, actions, labels_dict, ctxt_states, ctxt_actions, ctxt_labels_dict
 
     @property
     def seq_len(self):
@@ -157,7 +236,7 @@ class TrajectoryDataset(Dataset):
 
         for lf in self.all_label_functions:
             if lf.name == lf_name:
-                return lf(lf_config)
+                return lf(lf_config,self.bodyparts)
 
         raise NotImplementedError
 
@@ -177,6 +256,8 @@ class TrajectoryDataset(Dataset):
         Augmentations.Counter = 0 # reset counter for augmentations
 
         for aug_config in self.config['augmentations']:
+            aug_config['svd_computer'] = self._svd_computer
+            aug_config['mean'] = self._mean
             aug = self._get_augmentations(aug_config)
             self.active_augmentations.append(aug)
             self.summary['augmentations'][aug.name] = aug.summary
@@ -189,6 +270,8 @@ class TrajectoryDataset(Dataset):
         LabelFunction.Counter = 0 # reset counter for labeling functions
 
         for lf_config in self.config['labels']:
+            lf_config['svd_computer'] = self._svd_computer
+            lf_config['mean'] = self._svd_mean
             lf = self._get_label_function(lf_config)
             self.label_dim += lf.output_dim
             self.active_label_functions.append(lf)
@@ -201,6 +284,21 @@ class TrajectoryDataset(Dataset):
         for lf in self.active_label_functions:
             labels[lf.name] = lf.label(states, actions, true_labels, batch=True)
             assert labels[lf.name].size(0) == states.size(0) == actions.size(0)
+
+        return labels
+
+    def label_context_data(self, context_states, context_actions, true_labels=None):
+        """Labels a batch of data."""
+        labels = {}
+
+        context_states, context_actions = context_states.transpose(1, 0), context_actions.transpose(1, 0)
+        for lf in self.active_label_functions:
+            curr_lbl = []
+            for states, actions in zip(context_states, context_actions):
+                print('something')
+                curr_lbl.append(lf.label(states, actions, true_labels, batch=True))
+
+            labels[lf.name] = torch.stack(curr_lbl, axis=1)
 
         return labels
 
@@ -250,6 +348,18 @@ class LabelFunction(object):
     def __str__(self):
         return self.name
 
+    def create_negative_bins(self, labels, pmf_bins=5000):
+        # Density doesn't make a pdf sum to 1 unless all the bin widths = 1
+        values, edges = np.histogram(labels, bins=pmf_bins)
+        pdf = values / values.sum()
+        cdf = np.array([pdf[:i].sum() for i, _ in enumerate(pdf)])
+
+        # Using 5 bins now
+        neg_bins = np.vstack([np.array([0.2 * i for i in range(1, 6)])] * pmf_bins)
+        diff = np.abs(neg_bins - np.expand_dims(cdf, axis=1))
+        closest = np.argmin(diff, axis=0)
+        thresholds = edges[closest]
+
     def label(self, states, actions, true_labels=None, batch=False, apply_threshold=True):
         # Some preprocessing
         if not batch:
@@ -287,7 +397,7 @@ class LabelFunction(object):
 
         return labels
 
-    def label_func(self, states, actions, true_label=None):
+    def label_func(self, states, actions, true_label=None,full=False):
         raise NotImplementedError
 
 

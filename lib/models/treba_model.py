@@ -45,6 +45,10 @@ class TREBA_model(BaseSequentialModel):
         label_rnn_dim = self.config['rnn_dim']
         num_layers = self.config['num_layers']
 
+        # QUANTIZATION STUFF
+        num_embeddings = self.config['num_embeddings']
+        commitment_cost = self.config['commitment_cost']
+
         for param_key in self.loss_params.keys():
             if param_key in self.config.keys():
                 self.loss_params[param_key] = self.config[param_key]
@@ -120,10 +124,22 @@ class TREBA_model(BaseSequentialModel):
                                         nn.ReLU(),            
                                         nn.Linear(z_dim, z_dim))               
 
+
+        # QUANTIZATION STUFF
+        self.codebook = torch.nn.Embedding(num_embeddings, z_dim)
+        self.codebook.weight.data.uniform_(-1.0 / num_embeddings, 1.0 / num_embeddings)
+        self.codebook_usage = torch.zeros(num_embeddings)
+
+    def update_usage(self, min_encoding_indices):
+        if self.codebook_usage.device != min_encoding_indices.device:
+            self.codebook_usage = self.codebook_usage.to(min_encoding_indices.device)
+        unq, counts = torch.unique(min_encoding_indices, return_counts=True)
+        self.codebook_usage[unq] += counts
+
     def _define_losses(self):
-        self.log.add_loss('kl_div')
         self.log.add_loss('nll')
-        self.log.add_metric('kl_div_true')
+        self.log.add_loss('triplet')
+        self.log.add_loss('quantization')
 
         # Handle labeling function cases.
         if len(self.label_functions) > 0:
@@ -232,7 +248,103 @@ class TREBA_model(BaseSequentialModel):
         label_ohe.scatter_(-1, labels.unsqueeze(-1), 1)
         return label_ohe
 
-    def forward(self, states, actions, labels_dict):
+    def compute_context(self, ctxt_states, ctxt_actions, ctxt_labels_dict):
+        ctxt_labels = None
+        if len(ctxt_labels_dict) > 0:
+                ctxt_labels = torch.cat(list(ctxt_labels_dict.values()), dim=-1)
+       
+        (ctxt_states, ctxt_actions, ctxt_labels) = (ctxt_states.transpose(1,0), 
+                                                    ctxt_actions.transpose(1,0), 
+                                                    ctxt_labels.transpose(1,0))
+ 
+        ctxt_embeddings = []
+        for states, actions, labels in zip(ctxt_states, ctxt_actions, ctxt_labels):
+
+            states = states.transpose(0,1)
+            actions = actions.transpose(0,1)
+          
+            ctxt_embeddings.append(self.encode_mean(states[:-1], actions = actions, labels=labels)[0])
+        
+        return torch.mean(torch.stack(ctxt_embeddings), dim=0)
+
+    def find_negatives(self, states, actions, labels_dict):
+        with torch.no_grad():
+            neg_states, neg_actions, neg_labels = [], [], []
+            states = states.transpose(0,1)
+            actions = actions.transpose(0,1)
+
+            labels = None
+            if len(labels_dict) > 0:
+                    labels = torch.cat(list(labels_dict.values()), dim=-1)
+
+            for i, state in enumerate(states):
+                feats = torch.split(labels, 5, dim=1)
+
+                diffs = []
+                for feat in feats:
+
+                    un_ohe = torch.where(feat == 1)[1]
+                    diff_idxs = torch.where(torch.abs(un_ohe - un_ohe[i]) > 1)[0]
+                    diff_by_feat = torch.zeros(feat.shape[0])
+                    diff_by_feat[diff_idxs] = 1
+                    diffs.append(diff_by_feat.reshape(-1,1))
+                diffs = torch.cat(diffs, dim=1)
+
+                diffs = torch.where(torch.sum(diffs, axis=1) > 1)[0]
+                rand_neg_idx = diffs[torch.randint(len(diffs), (1,))]
+
+                neg_states.append(states[rand_neg_idx])
+                neg_actions.append(actions[rand_neg_idx])
+                neg_labels.append(labels[rand_neg_idx])
+
+            neg_states = torch.cat(neg_states, dim=0)
+            neg_actions = torch.cat(neg_actions, dim=0)
+            neg_labels = torch.cat(neg_labels, dim=0)
+
+            return neg_states.transpose(0,1), neg_actions.transpose(0,1), neg_labels
+
+    def compute_triplet_loss(self, pos, neg, ctxt):
+        p_to_a = torch.linalg.norm(pos - ctxt, axis=1)
+        n_to_a = torch.linalg.norm(neg - ctxt, axis=1)
+        margin_vec = torch.ones(p_to_a.shape).to(p_to_a.device) * self.config['margin']
+        zeros = torch.zeros(p_to_a.shape).to(p_to_a.device)
+        triplet_loss = torch.max(p_to_a - n_to_a + margin_vec, zeros).sum()
+
+        return triplet_loss, p_to_a, n_to_a
+
+    def quantize_encode(self, pos, return_idx=False):
+            #### first compute the distances from the embedding to each of the codebook vectors
+            distances = torch.sum(pos ** 2, dim=1, keepdim=True) + \
+                        torch.sum(self.codebook.weight ** 2, dim=1) - \
+                        2 * torch.matmul(pos, self.codebook.weight.t())
+    
+            #### now we need to find the closest codebook vector
+            min_encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
+            min_encodings = torch.zeros(
+                min_encoding_indices.shape[0],
+                self.config['num_embeddings']).to(pos.device)
+            min_encodings.scatter_(1, min_encoding_indices, 1)
+    
+            #### Mask off the quantized vector
+            z_q = torch.matmul(min_encodings, self.codebook.weight).view(pos.shape)
+
+            self.log.losses['quantization'] = torch.mean((z_q.detach() - pos)**2) + \
+                                                   self.config['commitment_cost'] * torch.mean((z_q - pos.detach())**2)
+
+            self.update_usage(min_encoding_indices)
+ 
+            return z_q, min_encoding_indices
+
+
+    def check_usage(self, z_e):
+        pmf = (self.codebook_usage / torch.sum(self.codebook_usage))
+        dead_code_idxs = torch.where(pmf < self.config['restart_threshold'])
+        rand_enc = torch.randperm(z_e.shape[0])[:dead_code_idxs[0].shape[0]]
+
+        with torch.no_grad():
+            self.codebook.weight[dead_code_idxs] = z_e[rand_enc]
+
+    def forward(self, states, actions, labels_dict, ctxt_states, ctxt_actions, ctxt_labels_dict, embed=False, restart=False):
         self.log.reset()
 
         # Consistency and decoding loss need labels.
@@ -247,7 +359,7 @@ class TREBA_model(BaseSequentialModel):
         labels = None
         if len(labels_dict) > 0:
             labels = torch.cat(list(labels_dict.values()), dim=-1)
-        
+
         # Pretrain program approximators, if using consistency loss.
         if self.stage == 1 and self.loss_params['consistency_loss_weight'] > 0:
             for lf_idx, lf_name in enumerate(labels_dict):
@@ -269,14 +381,24 @@ class TREBA_model(BaseSequentialModel):
             # Encode
             posterior = self.encode(states[:-1], actions=actions, labels=labels)
 
-            kld = Normal.kl_divergence(posterior, free_bits=0.0).detach()
-            self.log.metrics['kl_div_true'] = torch.sum(kld)
+            # -=-= Compute triplet loss =-=-
+            pos = posterior.mean
+            
+            if not embed:
+                ctxt = self.compute_context(ctxt_states, ctxt_actions, ctxt_labels_dict)
+                neg_states, neg_actions, neg_labels = self.find_negatives(states, actions, labels_dict)
+                neg = self.encode(neg_states[:-1], actions=neg_actions, labels=neg_labels).mean
+                self.log.losses['triplet'], p_to_a, n_to_a = self.compute_triplet_loss(pos, neg, ctxt)
+            # -=-= End compute triplet loss =-=-
 
-            kld = Normal.kl_divergence(posterior, free_bits=1/self.config['z_dim'])
-            self.log.losses['kl_div'] = torch.sum(kld)
+            # -=-= Start compute quantization =-=-
+            z_q, enc_idx = self.quantize_encode(pos)
+            if restart:
+                self.check_usage(pos)
+            # -=-= End compute quantization =-=-
 
             # Decode
-            self.reset_policy(labels=labels, z=posterior.sample())
+            self.reset_policy(labels=labels, z=z_q)
 
             for t in range(actions.size(0)):
                 action_likelihood = self.decode_action(states[t])
@@ -291,14 +413,14 @@ class TREBA_model(BaseSequentialModel):
                 for lf_idx, lf_name in enumerate(labels_dict):
                     lf = self.config['label_functions'][lf_idx]
                     lf_labels = labels_dict[lf_name]
-                    self.log.losses["decoded_" + lf_name] = compute_decoding_loss(posterior.mean, 
+                    self.log.losses["decoded_" + lf_name] = compute_decoding_loss(z_q, 
                                                     lf_labels, self.label_decoder_fc_decoding[lf_idx], 
                                                     lf.categorical, loss_weight = self.loss_params['decoding_loss_weight'])
 
             # Generate rollout for consistency loss.
             # Use the posterior to train here.
             if self.loss_params['consistency_loss_weight'] > 0:
-                self.reset_policy(labels=labels, z=posterior.sample(), 
+                self.reset_policy(labels=labels, z=z_q, 
                         temperature = self.loss_params['consistency_temperature'])
 
                 rollout_states, rollout_actions = self.generate_rollout(states, horizon=actions.size(0))
@@ -402,7 +524,8 @@ class TREBA_model(BaseSequentialModel):
                             base_temperature = self.loss_params['contrastive_base_temperature'],
                             loss_weight = self.loss_params['contrastive_loss_weight'])
 
-
+        if embed:
+            return self.log, enc_idx #, p_to_a, n_to_a
         return self.log
 
     def generate_rollout(self, states, horizon):

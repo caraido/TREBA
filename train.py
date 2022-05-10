@@ -1,6 +1,7 @@
 import os
 import random
 import time
+from tqdm import tqdm
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,8 +11,9 @@ from util.datasets import load_dataset
 from lib.models import get_model_class
 from util.logging import LogEntry
 
+from util.datasets.Schwartz_mouse_v2.preprocess import *
 
-def run_epoch(data_loader, model, device, train=True, early_break=False):
+def run_epoch(data_loader, model, device, epoch, train=True, early_break=False, weight_losses=False):
     log = LogEntry()
 
     # Setting model and dataset into train/eval mode
@@ -22,13 +24,51 @@ def run_epoch(data_loader, model, device, train=True, early_break=False):
         model = model.eval()
         data_loader.dataset.eval()
 
-    for batch_idx, (states, actions, labels_dict) in enumerate(data_loader):
-        states = states.to(device)
-        actions = actions.to(device)
+    for batch_idx, (states, actions, labels_dict, ctxt_states, ctxt_actions, ctxt_labels_dict) in tqdm.tqdm(enumerate((data_loader))):
+        states = states.to(device).float()
+        actions = actions.to(device).float()
         labels_dict = { key: value.to(device) for key, value in labels_dict.items() }
-        
-        batch_log = model(states, actions, labels_dict)
+       
+        ctxt_states = ctxt_states.to(device).float()
+        ctxt_actions = ctxt_actions.to(device).float()
+        ctxt_labels_dict = { key: value.to(device).float() for key, value in ctxt_labels_dict.items() }
 
+        if batch_idx > 0 and batch_idx % 10 == 0:
+            batch_log = model(
+                states,
+                actions,
+                labels_dict,
+                ctxt_states,
+                ctxt_actions,
+                ctxt_labels_dict,
+                restart = True
+            )
+        else:
+            batch_log = model(
+                states,
+                actions,
+                labels_dict,
+                ctxt_states,
+                ctxt_actions,
+                ctxt_labels_dict
+            )
+ 
+        # TODO: need to implement this
+        #biggest_loss = np.array([loss.detach().cpu().numpy() for loss_name, loss in batch_log.losses.items()]).max()
+        #print(batch_log)
+        if weight_losses:
+            batch_log.losses['nll'] = batch_log.losses['nll'] * 1
+            batch_log.losses['triplet'] = batch_log.losses['triplet'] *3000
+            batch_log.losses['quantization'] = batch_log.losses['quantization'] * 30000000
+            batch_log.losses['decoded_LF00_distance_between_ears_Threshold'] = batch_log.losses['decoded_LF00_distance_between_ears_Threshold'] * 2
+            batch_log.losses['decoded_LF01_skullbase_to_tailbase_length_Threshold'] = batch_log.losses['decoded_LF01_skullbase_to_tailbase_length_Threshold'] * 2
+            batch_log.losses['decoded_LF02_head_body_ratio_Threshold'] = batch_log.losses['decoded_LF02_head_body_ratio_Threshold'] * 2
+            batch_log.losses['decoded_LF03_head_body_angle_Threshold'] = batch_log.losses['decoded_LF03_head_body_angle_Threshold'] * 2
+            batch_log.losses['decoded_LF04_body_hip_angle_Threshold'] = batch_log.losses[
+                                                                             'decoded_LF04_body_hip_angle_Threshold'] * 2
+            batch_log.losses['decoded_LF05_speed_Threshold'] = batch_log.losses[
+                                                                             'decoded_LF05_speed_Threshold'] * 2
+                
         if train:
             model.optimize(batch_log.losses)
 
@@ -65,8 +105,8 @@ def start_training(save_path, data_config, model_config, train_config, device, t
     summary['dataset'] = dataset.summary
 
     # Add state and action dims to model config
-    model_config['state_dim'] = dataset.state_dim
-    model_config['action_dim'] = dataset.action_dim
+    model_config['state_dim'] = dataset.state_dim     # REMOVING ABSOLUTE CENTROID POSITION + ANGLE
+    model_config['action_dim'] = dataset.action_dim   # REMOVING ABSOLUTE CENTROID POSITION + ANGLE
 
     # Get model class
     model_class = get_model_class(model_config['name'].lower())
@@ -85,7 +125,7 @@ def start_training(save_path, data_config, model_config, train_config, device, t
     summary['model']['num_parameters'] = model.num_parameters
 
     # Initialize dataloaders
-    kwargs = {'num_workers': 8, 'pin_memory': False, 'worker_init_fn': np.random.seed(seed)} if device is not 'cpu' else {}
+    kwargs = {'num_workers': 8, 'pin_memory': False, 'worker_init_fn': np.random.seed(seed)} if device != 'cpu' else {}
     data_loader = DataLoader(dataset, batch_size=train_config['batch_size'], shuffle=True, **kwargs)
 
     # Initialize with pretrained model (if specified)
@@ -104,6 +144,16 @@ def start_training(save_path, data_config, model_config, train_config, device, t
     start_time = time.time()
     epochs_done = 0
 
+
+
+
+    # TEMPORARY
+    PICK_BEST_TRIPLET = True
+    WEIGHT_LOSSES = True
+
+
+
+
     for num_epochs in train_config['num_epochs']:
 
         model.prepare_stage(train_config)
@@ -118,8 +168,8 @@ def start_training(save_path, data_config, model_config, train_config, device, t
             print('--- EPOCH [{}/{}] ---'.format(epochs_done, sum(train_config['num_epochs'])))
 
             epoch_start_time = time.time()
-            train_log = run_epoch(data_loader, model, device, train=True, early_break=test_code)
-            test_log = run_epoch(data_loader, model, device, train=False, early_break=test_code)
+            train_log = run_epoch(data_loader, model, device, epoch, weight_losses=WEIGHT_LOSSES, train=True, early_break=test_code)
+            test_log = run_epoch(data_loader, model, device, epoch, weight_losses=WEIGHT_LOSSES, train=False, early_break=test_code)
             epoch_time = time.time() - epoch_start_time
             print('{:.3f} seconds'.format(epoch_time))
         
@@ -137,12 +187,20 @@ def start_training(save_path, data_config, model_config, train_config, device, t
                 print('Checkpoint saved')
 
             # Save model with best test loss during stage
-            if epoch == 0 or sum(test_log['losses'].values()) < sum(best_test_log['losses'].values()):
 
-                best_test_log = test_log
-                best_test_log_times.append(epochs_done)
-                torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
-                print('Best model saved')
+            if PICK_BEST_TRIPLET:
+                if epoch == 0 or (test_log['losses']['triplet']) < (best_test_log['losses']['triplet']):
+                    best_test_log = test_log
+                    best_test_log_times.append(epochs_done)
+                    torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
+                    print('Best model saved')
+            else:
+                if epoch == 0 or sum(test_log['losses'].values()) < sum(best_test_log['losses'].values()):
+                    best_test_log = test_log
+                    best_test_log_times.append(epochs_done)
+                    torch.save(model.state_dict(), os.path.join(save_path, 'best.pth'))
+                    print('Best model saved')
+
 
         # Save training statistics by stage
         summary['training'].append({

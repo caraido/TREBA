@@ -81,7 +81,7 @@ def compute_contrastive_loss(posterior, aug_posterior, contrastive_fc,
         anchor_feature = contrast_feature
         anchor_count = contrast_count
     else:
-        raise ValueError('Unknown mode: {}'.format(self.contrast_mode))
+        raise ValueError('Unknown mode: {}'.format(contrast_mode))
 
     # compute logits
     anchor_dot_contrast = torch.div(

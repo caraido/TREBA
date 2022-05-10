@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from util.datasets import load_dataset
 from lib.models import get_model_class
 from time import gmtime, strftime
-from train import start_training
+from triplet_sanity_check import sanity_check 
 import numpy as np
 
 from feature_extraction import extract_features
@@ -15,7 +15,7 @@ from feature_extraction import extract_features
 # Script starts here.
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_dir', type=str,
-                    required=False, default='Schwartz_mouse',
+                    required=False, default='',
                     help='path to all config files for experiments')
 parser.add_argument('--save_dir', type=str,
                     required=False, default='saved',
@@ -24,10 +24,10 @@ parser.add_argument('--exp_name', type=str,
                     required=False, default='',
                     help='experiment name (default will be config folder name)')
 parser.add_argument('-d', '--device', type=int,
-                    required=False, default=0,
+                    required=False, default=-1,
                     help='device to run the experiment on')
 parser.add_argument('-i', '--index', type=int,
-                    required=False, default=1,
+                    required=False, default=-1,
                     help='run a single experiment in the folder, specified by index')
 parser.add_argument('--test_code', action='store_true',
                     required=False, default=False,
@@ -39,8 +39,7 @@ parser.add_argument('--feature_names', type=str,
                     required=False, default=None,
                     help='paths to save extracted features')                                        
 args = parser.parse_args()
-args.index=2
-args.device=0
+
 
 # Get JSON files
 config_dir = os.path.join(os.getcwd(), 'configs', args.config_dir)
@@ -106,7 +105,7 @@ for config_file in config_files:
         os.makedirs(os.path.join(save_path, 'results')) # for saving various results afterwards (e.g. plots, samples, etc.)
 
     # Start training
-    summary, log, data_config, model_config, train_config = start_training(
+    summary, log, data_config, model_config, train_config = sanity_check(
         save_path=save_path,
         data_config=config['data_config'],
         model_config=config['model_config'],

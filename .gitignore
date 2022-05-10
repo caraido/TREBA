@@ -10,3 +10,11 @@ downstream_tasks/fly_classification/classifier_logs/
 *.sublime-workspace
 *.sublime-project
 *.h5
+/util/datasets/Schwartz_mouse_v1/data/
+/util/datasets/Schwartz_mouse_v1/svd/
+/util/datasets/mouse_v1/data/
+/util/datasets/Schwartz_mouse_v1/reconstructed/
+/util/datasets/Schwartz_mouse_v2/data/
+/util/datasets/Schwartz_mouse_v2/reconstructed/
+/util/datasets/Schwartz_mouse_v2/svd/
+/util/datasets/Schwartz_mouse_v2/labels/
