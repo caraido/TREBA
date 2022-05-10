@@ -1,0 +1,60 @@
+{
+    "data_config": {
+        "name": "Schwartz_mouse_v2",
+        "mirror_data": true,
+        "normalize_data": true,
+        "compute_svd": 5,
+        "root_data_directory": "./util/datasets/Schwartz_mouse_v2/data",
+        "filename": "3D_False_train.pk",
+        "test_save_path": "./util/datasets/Schwartz_mouse_v2/labels/test_labels.json",
+        "label_train_set": true,
+        "new_threshold": true,
+        "labels": [
+            {
+                "name": "distance_between_ears",
+                "thresholds": [0.41567189, 0.46301466, 0.51035744, 0.60351574]
+            },
+            {
+                "name": "skullbase_to_tailbase_length",
+                "thresholds": [0.39965397, 2.3908603, 7.966238, 22.302923]
+            },
+            {
+                "name": "head_body_ratio",
+                "thresholds": [0.915437, 3.7915564, 11.635472, 26.015985]
+            },
+            {
+                "name": "head_body_angle",
+                "thresholds": [-0.32498848, 0.02255473, 0.28941828, 0.5686941]
+            },
+            {
+                "name": "body_hip_angle",
+                "thresholds": [-0.32498848, 0.02255473, 0.28941828, 0.5686941]
+            },
+            {
+                "name": "speed",
+                "thresholds": [-0.32498848, 0.02255473, 0.28941828, 0.5686941]
+            }
+        ]    
+    },
+    "model_config": {
+        "name": "treba_model",
+        "z_dim": 32,
+        "h_dim": 256,
+        "rnn_dim": 256,
+        "num_layers": 1, 
+        "consistency_loss_weight": 0.0,
+        "contrastive_loss_weight": 0.0,
+        "decoding_loss_weight": 10.0,
+        "margin": 0.1,
+        "num_embeddings": 20,
+        "commitment_cost": 1.0,
+		"restart_threshold": 0.001
+    },
+    "train_config": {
+        "batch_size": 512,
+        "checkpoint_freq": 999,
+        "learning_rate": 0.0002,
+        "num_epochs": [400],
+        "clip": 10
+    }
+}

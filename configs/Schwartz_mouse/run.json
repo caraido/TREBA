@@ -1,0 +1,26 @@
+{
+    "data_config": {
+        "name": "Schwartz_mouse_v1",
+        "align_data": true,
+        "mirror_data": true,
+        "normalize_data": true,
+        "compute_svd": 5
+    },
+    "model_config": {
+        "name": "treba_model",
+        "z_dim": 32,
+        "h_dim": 256,
+        "rnn_dim": 256,
+        "num_layers": 1,
+        "contrastive_loss_weight": 10.0,
+        "consistency_loss_weight": 0.0,
+        "decoding_loss_weight": 0.0
+    },
+    "train_config": {
+        "batch_size": 128,
+        "checkpoint_freq": 999,
+        "learning_rate": 0.0002,
+        "num_epochs": [100,400],
+        "clip": 10
+    }
+}
