@@ -58,8 +58,8 @@ def run_epoch(data_loader, model, device, epoch, train=True, early_break=False, 
         #print(batch_log)
         if weight_losses:
             batch_log.losses['nll'] = batch_log.losses['nll'] * 1
-            batch_log.losses['triplet'] = batch_log.losses['triplet'] *3000
-            batch_log.losses['quantization'] = batch_log.losses['quantization'] * 30000000
+            batch_log.losses['triplet'] = batch_log.losses['triplet'] #*3000
+            batch_log.losses['quantization'] = batch_log.losses['quantization'] #* 30000000
             batch_log.losses['decoded_LF00_distance_between_ears_Threshold'] = batch_log.losses['decoded_LF00_distance_between_ears_Threshold'] * 2
             batch_log.losses['decoded_LF01_skullbase_to_tailbase_length_Threshold'] = batch_log.losses['decoded_LF01_skullbase_to_tailbase_length_Threshold'] * 2
             batch_log.losses['decoded_LF02_head_body_ratio_Threshold'] = batch_log.losses['decoded_LF02_head_body_ratio_Threshold'] * 2
@@ -115,6 +115,7 @@ def start_training(save_path, data_config, model_config, train_config, device, t
     #if model_class.requires_labels:
     model_config['label_dim'] = dataset.label_dim
     model_config['label_functions'] = dataset.active_label_functions
+    model_config['num_bins']=data_config['num_bins']
 
     #if model_class.requires_augmentations:
     model_config['augmentations'] = dataset.active_augmentations
@@ -125,7 +126,7 @@ def start_training(save_path, data_config, model_config, train_config, device, t
     summary['model']['num_parameters'] = model.num_parameters
 
     # Initialize dataloaders
-    kwargs = {'num_workers': 8, 'pin_memory': False, 'worker_init_fn': np.random.seed(seed)} if device != 'cpu' else {}
+    kwargs = {'num_workers': 10, 'pin_memory': False, 'worker_init_fn': np.random.seed(seed)} if device != 'cpu' else {}
     data_loader = DataLoader(dataset, batch_size=train_config['batch_size'], shuffle=True, **kwargs)
 
     # Initialize with pretrained model (if specified)

@@ -36,7 +36,7 @@ def unnormalize(data):
 
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
+    return vector / np.linalg.norm(vector,axis=0)
 
 
 # to calculate angle between 2 vectors for 2D or 3D
@@ -254,7 +254,7 @@ def alignment_wrapper(data:dict,body_parts:list,remove:list):
             if not contain:
                 new_aligned.append(aligned[:,:,i])
                 bodyparts_reborn.append(bp)
-        new_aligned=np.array(new_aligned).reshape(aligned.shape[0],aligned.shape[1],-1)
+        new_aligned=np.array(new_aligned).transpose(1,2,0)
         new_data[key]=np.array(new_aligned)
         all_t_matrix[key]=t_matrix
         all_r_matrix[key]=r_matrix

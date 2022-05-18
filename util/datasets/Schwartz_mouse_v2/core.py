@@ -184,8 +184,6 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
             data = pickle.load(f)
 
         print('Registering, filtering, and normalizing ...')
-        # TODO: sliding_window: does it have to be seq_len when training?
-        # TODO: is seq len the default
         data=self.convert_to_trajectories(data,trajectory_length=self.seq_len,sliding_window=1)
 
         # align the data to egocentric, more importantly, removing tailend
@@ -201,9 +199,10 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
         data_combined= np.concatenate([vid for vid_name, vid in data.items()])
 
         # Compute SVD on train data and apply to train and test data
+        data_svd=None
         if self.compute_svd:
             data_combined = data_combined.reshape((-1, 1, int(len(new_bodyparts)/2), 2))
-            # Input [seq_num x seq_len, 1 mouse, 8 bodyparts, 2 xy]
+            # Input [seq_num x seq_len, 1 mouse, 7 bodyparts, 2 xy]
             if train and self._svd_computer is None:
                 data_svd, self._svd_computer, self._svd_mean = transform_to_svd_components(
                     data_combined, new_bodyparts,center_index=int(new_bodyparts.index('skull_base_x')/2), n_components=self.compute_svd,
@@ -238,9 +237,6 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
         # Preprocess invidual videos to make context now
         print('Now preprocessing all videos ...')
         data = self.preprocess_videos(data,new_bodyparts)
-
-
-
 
         # Make context
         print('Now making context ...')

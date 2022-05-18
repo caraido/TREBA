@@ -525,7 +525,7 @@ class TREBA_model(BaseSequentialModel):
                             loss_weight = self.loss_params['contrastive_loss_weight'])
 
         if embed:
-            return self.log, enc_idx #, p_to_a, n_to_a
+            return self.log, enc_idx,z_q,pos #, p_to_a, n_to_a
         return self.log
 
     def generate_rollout(self, states, horizon):
@@ -550,7 +550,7 @@ class TREBA_model(BaseSequentialModel):
 
 
     def decode_action(self, state):
-        dec_fc_input = torch.cat([state, self.z], dim=1)
+        dec_fc_input = torch.cat([state, self.z], dim=1).to(torch.float32)
 
         if self.is_recurrent:
             dec_fc_input = torch.cat([dec_fc_input, self.hidden[-1]], dim=1)

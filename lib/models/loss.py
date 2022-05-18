@@ -1,10 +1,25 @@
 import torch
 import torch.nn.functional as F
 
+def compute_quantization_loss(z_q, z_e, commitment_cost, loss_weight=1.0):
+    ''' Compute the vq loss terms '''
+    vq_loss = F.mse_loss(z_q, z_e.detach(), reduction='sum')
+    commit_loss = F.mse_loss(z_e, z_q.detach(), reduction='sum') * commitment_cost
+    return (vq_loss + commit_loss)*loss_weight
+
+def compute_triplet_loss(pos, neg, ctxt, margin, loss_weight=1.0):
+    '''Compute temporal smoothing triplet loss'''
+    p_to_a = torch.linalg.norm(pos - ctxt, axis=1)
+    n_to_a = torch.linalg.norm(neg - ctxt, axis=1)
+    margin_vec = torch.ones(p_to_a.shape).to(p_to_a.device) * margin
+    zeros = torch.zeros(p_to_a.shape).to(p_to_a.device)
+    triplet_loss = torch.max(p_to_a - n_to_a + margin_vec, zeros).sum()
+
+    return triplet_loss*loss_weight, p_to_a, n_to_a
 
 def compute_label_loss(states, actions, labels, approx_rnn, approx_fc, categorical, loss_weight = 1.0):
     '''Compute attribute consistency loss'''
-    assert states.size(0) == actions.size(0)        
+    assert states.size(0) == actions.size(0)
 
     hiddens, _ = approx_rnn(torch.cat([states, actions], dim=-1))
     avg_hiddens = torch.mean(hiddens, dim=0)
@@ -35,7 +50,7 @@ def compute_decoding_loss(representations, labels, decoding_fc, categorical, los
 
 # Supervised Contrastive Loss based on:
 # https://github.com/HobbitLong/SupContrast/blob/master/losses.py
-def compute_contrastive_loss(posterior, aug_posterior, contrastive_fc, 
+def compute_contrastive_loss(posterior, aug_posterior, contrastive_fc,
     labels=None, mask=None, contrast_mode = 'all', temperature = 0.07,
     base_temperature = 0.07, loss_weight = 1.0):
     '''Compute contrastive loss'''
@@ -44,9 +59,9 @@ def compute_contrastive_loss(posterior, aug_posterior, contrastive_fc,
     # normalize
     zis = torch.nn.functional.normalize(zis, dim = 1)
 
-    zjs = contrastive_fc(aug_posterior)      
-    # normalize      
-    zjs = torch.nn.functional.normalize(zjs, dim = 1)        
+    zjs = contrastive_fc(aug_posterior)
+    # normalize
+    zjs = torch.nn.functional.normalize(zjs, dim = 1)
 
     features = torch.stack([zis, zjs], dim = 1)
 

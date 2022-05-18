@@ -16,7 +16,6 @@ import itertools
 import matplotlib
 matplotlib.use('TkAgg')
 
-reconstructed_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed'
 
 
 def get_cmap(n, name="hsv"):
@@ -36,7 +35,7 @@ def draw_skeleton(ax, pose:np.ndarray,color='grey',alpha=1):
     line5=[3,6]
     line6=[4,5]
     line7=[4,6]
-    line8=[4,7]
+    #line8=[4,7]
 
     collection=[line0,line1,line2,line3,line4,line5,line6,line7]#,line8]
     xx = np.hstack([pose[x,0] for x in collection])
@@ -48,8 +47,8 @@ def find_maxmin(trajectories):
     max_x=max_y=0
     min_x=min_y=10e6
 
-    if trajectories.shape[-1]==16:
-        for i in range(8):
+    if trajectories.shape[-1]==16 or trajectories.shape[-1]==14:
+        for i in range(int(trajectories.shape[-1]/2)):
             x=trajectories[:,i*2]
             y=trajectories[:,i*2+1]
             max_x=np.maximum(np.max(x),max_x)
@@ -131,7 +130,8 @@ def stack_all_trajectory(trajectory:np.ndarray,skip=1):
 if __name__=='__main__':
     # need to note that all the testing dataset has a skip=1. A lot of overlaps
     folder_name='3D_False_test'
-    bodyparts_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/data/3D_False_bodyparts.pk' # temporary solution
+    reconstructed_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed'
+    bodyparts_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data/3D_False_bodyparts.pk' # temporary solution
     folder_path=os.path.join(reconstructed_path,folder_name)
     all_items=os.listdir(folder_path)
 
@@ -176,7 +176,7 @@ if __name__=='__main__':
         # load reconstructed trajectory
         embeddings = np.load(os.path.join(folder_path, 'embeddings_test.npy'))
 
-    compare_trajectory_animation(trajectories=original,compare=reconstructed,train=train)
+    compare_trajectory_animation(trajectories=original,compare=reconstructed,train=train,extra=0.1)
 
 
 

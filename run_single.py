@@ -39,7 +39,7 @@ parser.add_argument('--feature_names', type=str,
                     required=False, default=None,
                     help='paths to save extracted features')                                        
 args = parser.parse_args()
-args.index=2
+args.index=6 # ix of the config file
 args.device=0
 
 # Get JSON files

@@ -66,7 +66,7 @@ class BaseSequentialModel(nn.Module):
 
     def update_hidden(self, state, action):
         assert self.is_recurrent
-        state_action_pair = torch.cat([state, action], dim=1).unsqueeze(0)
+        state_action_pair = torch.cat([state, action], dim=1).unsqueeze(0).to(torch.float32)
         hiddens, self.hidden = self.dec_rnn(state_action_pair, self.hidden)
 
         return hiddens
@@ -76,7 +76,7 @@ class BaseSequentialModel(nn.Module):
         enc_birnn_input = states
         if actions is not None:
             assert states.size(0) == actions.size(0)
-            enc_birnn_input = torch.cat([states, actions], dim=-1)
+            enc_birnn_input = torch.cat([states, actions], dim=-1).to(torch.float32)
         
         hiddens, _ = self.enc_birnn(enc_birnn_input)
         avg_hiddens = torch.mean(hiddens, dim=0)

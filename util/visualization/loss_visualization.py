@@ -63,21 +63,40 @@ def draw_recon_error(ax, original:np.ndarray, recon:np.ndarray,extra_original=No
 if __name__=='__main__':
     recon_folder='3D_False_test'
 
-    log_path=os.path.join(model_path,'run','log.json')
+    log_path=os.path.join(model_path,'run_3_pretrain','log.json')
     with open(log_path,'r') as f:
         log=json.load(f)
 
     recon_folder=os.path.join(recon_path,recon_folder)
 
-    original_train=np.load(os.path.join(recon_folder,'original_train.npy'))
-    recon_train=np.load(os.path.join(recon_folder,'reconstructed_train.npy'))
-    original_test=np.load(os.path.join(recon_folder,'original_test.npy'))
-    recon_test=np.load(os.path.join(recon_folder,'reconstructed_test.npy'))
+    #original_train=np.load(os.path.join(recon_folder,'original_train.npy'))
+    #recon_train=np.load(os.path.join(recon_folder,'reconstructed_train.npy'))
+    #original_test=np.load(os.path.join(recon_folder,'original_test.npy'))
+    #recon_test=np.load(os.path.join(recon_folder,'reconstructed_test.npy'))
 
 
-    training_loss=[x['train']['losses']['kl_div']+x['train']['losses']['nll']+x['train']['losses']['contrastive'] for x in log]
-    val_loss=[x['test']['losses']['kl_div']+x['test']['losses']['nll']+x['test']['losses']['contrastive'] for x in log]
-
+    training_loss=[
+                   x['train']['losses']['nll']+
+                   x['train']['losses']['triplet'] +
+                   x['train']['losses']['quantization']+
+                   x['train']['losses']["decoded_LF00_distance_between_ears_Threshold"]+
+                   x['train']['losses']["decoded_LF01_skullbase_to_tailbase_length_Threshold"] +
+                   x['train']['losses']["decoded_LF02_head_body_ratio_Threshold"] +
+                   x['train']['losses']["decoded_LF03_head_body_angle_Threshold"] +
+                   x['train']['losses']["decoded_LF04_body_hip_angle_Threshold"]+
+                   x['train']['losses']["decoded_LF05_speed_Threshold"]
+                   for x in log]
+    val_loss = [
+                     x['test']['losses']['nll'] +
+                     x['test']['losses']['triplet'] +
+                     x['test']['losses']['quantization'] +
+                     x['test']['losses']["decoded_LF00_distance_between_ears_Threshold"] +
+                     x['test']['losses']["decoded_LF01_skullbase_to_tailbase_length_Threshold"] +
+                     x['test']['losses']["decoded_LF02_head_body_ratio_Threshold"] +
+                     x['test']['losses']["decoded_LF03_head_body_angle_Threshold"] +
+                     x['test']['losses']["decoded_LF04_body_hip_angle_Threshold"] +
+                     x['test']['losses']["decoded_LF05_speed_Threshold"]
+                     for x in log]
     kernel_size = 10
     kernel = np.ones(kernel_size) / kernel_size
     training_loss=np.convolve(training_loss, kernel, mode='valid')
@@ -86,7 +105,8 @@ if __name__=='__main__':
     fig=plt.figure()
     ax1=fig.add_subplot(211)
     draw_train_val_loss(ax1,training_loss,val_loss)
-    ax2=fig.add_subplot(212)
-    draw_recon_error(ax2,original_train,recon_train,original_test,recon_test)
+    ax1.set_ylim([-200,-100])
+    #ax2=fig.add_subplot(212)
+    #draw_recon_error(ax2,original_train,recon_train,original_test,recon_test)
     plt.tight_layout()
     plt.show()

@@ -111,7 +111,7 @@ class HeadBodyAngle(LabelFunctionWrapper):
         nose_vector=np.array([nose_x-skullbase_x,nose_y-skullbase_y])
         tail_vector=np.array([tailbase_x-skullbase_x,tailbase_y-skullbase_y])
 
-        angle=angle_between(nose_vector,tail_vector) # TODO: double check this
+        angle=angle_between(nose_vector,tail_vector)
         label_tensor = torch.from_numpy(angle)
         label_tensor = label_tensor.to(states.device)
         if full:

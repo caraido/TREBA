@@ -10,10 +10,73 @@ from lib.models import get_model_class
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import pickle as pk
-from util.datasets.Schwartz_mouse_v1.preprocess import svd_computer_path,mean_path, transform_svd_to_keypoints
+from util.datasets.Schwartz_mouse_v2.preprocess import svd_computer_path,mean_path, transform_svd_to_keypoints
 
 
-def reconstruction(data_compound,model):
+def reconstruction(data_loader, model):
+    new_states = []
+    all_embeddings = []
+    clusters=[]
+    for idx, data in tqdm(enumerate(data_loader)):
+        # preprocessing the data
+        # states,actions=data
+        states, actions, labels_dict, ctxt_states, ctxt_actions, ctxt_labels_dict = data
+
+        states = states.to(device)
+        actions = actions.to(device)
+        labels_dict = {key: value.to(device) for key, value in labels_dict.items()}
+        ctxt_states = ctxt_states.to(device)
+        ctxt_actions = ctxt_actions.to(device)
+        ctxt_labels_dict = {key: value.to(device).float() for key, value in ctxt_labels_dict.items()}
+
+        #assert actions.size(1) + 1 == states.size(1)  # final state has no corresponding action
+        #states = states.transpose(0, 1)
+        #actions = actions.transpose(0, 1)
+        #ctxt_states = ctxt_states.transpose(0, 1)
+        #ctxt_actions = ctxt_actions.transpose(0, 1)
+
+
+        # encode
+        _,cluster,posterior,embedding=model(states,actions,labels_dict,
+                                          ctxt_states,ctxt_actions,ctxt_labels_dict,
+                                          embed=True)
+        #posterior = model.encode(states[:-1], actions=actions, labels=None)
+        #embedding = posterior.mean
+
+        # z=codebook vector
+        model.reset_policy(labels=None, z=posterior)
+
+        # decode
+        actions_hat = []
+        states_hat = [states[:,0]]
+        new_state = 0
+
+        # get states estimation from the posterior distribution
+        for t in range(actions.size(1)):
+            # decode action
+            new_action = model.act(states[:,t])
+            # reconstruct state from the action
+            if t == 0:
+                new_state = states[:,0] + new_action
+            else:
+                new_state = new_state + new_action
+            actions_hat.append(new_action)
+            states_hat.append(new_state)
+
+        states_hat = torch.stack(states_hat)
+        new_states.append(torch.squeeze(states_hat).cpu().detach().numpy())
+        all_embeddings.append(torch.squeeze(embedding).cpu().detach().numpy())
+        clusters.append(int(torch.squeeze(cluster).cpu().detach().numpy()))
+
+    new_states = np.array(new_states)
+    all_embeddings = np.array(all_embeddings)
+    clusters=np.array(clusters)
+
+    return all_embeddings, new_states,clusters
+
+
+'''
+def reconstruction(data_compound,model,labels_dict=None):
 
     new_states=[]
     all_embeddings=[]
@@ -59,6 +122,7 @@ def reconstruction(data_compound,model):
     all_embeddings=np.array(all_embeddings)
 
     return all_embeddings,new_states
+'''
 
 def get_data(config):
     # load data to the dataloader
@@ -70,14 +134,20 @@ def get_model(config,dataset):
     model_config = config
     model_config['state_dim'] = dataset.state_dim
     model_config['action_dim'] = dataset.action_dim
-    model_class = get_model_class(model_config['name'].lower())
+    # if there is label, then load labels
+    try:
+        model_config['label_dim'] = dataset.label_dim
+        model_config['label_functions'] = dataset.active_label_functions
+    except:
+        pass
+    model_class = get_model_class(model_config['name'].lower()) # TODO: need to change this when two models are both available
     model = model_class(model_config).to(device)
     return model
 
 def prepare_model(model, state_dict):
     model.load_state_dict(state_dict)
     # double check if using model.eval is correct
-    model=model.eval()
+    #model=model.eval()
     return model
 
 def generate_embeddings_reconstruction(config,train,test):
@@ -88,18 +158,21 @@ def generate_embeddings_reconstruction(config,train,test):
     # prepare model
     state_dict = torch.load(best_result_path)
     model = prepare_model(model, state_dict)
-    data_loader.dataset.eval()
     # assign the best model to it
 
     # calculating embeddings and reconstructed trajectories for train data
     if train:
-        train_data = zip(dataset.train_states, dataset.train_actions)
-        train_embeddings, train_reconstructed = reconstruction(train_data, model)
+        model=model.train()
+        # TODO: need to change when loading the old model
+        data_loader.dataset.train()
+        train_embeddings, train_reconstructed,train_clusters = reconstruction(data_loader, model)
         train_original = dataset.train_states.cpu().detach().numpy()
 
     if test:
-        test_data = zip(dataset.test_states, dataset.test_actions)
-        test_embeddings, test_reconstructed = reconstruction(test_data, model)
+        model=model.eval()
+        #test_data = zip(dataset.test_states, dataset.test_actions)
+        data_loader.dataset.test()
+        test_embeddings, test_reconstructed,test_clusters = reconstruction(data_loader, model,)
         test_original = dataset.test_states.cpu().detach().numpy()
 
     # if we used svd, here we need to inverse transform the data into trajectories
@@ -147,6 +220,8 @@ def generate_embeddings_reconstruction(config,train,test):
 
     # add information of the test dataset
     run_config['test_dataset'] = config['data_config']
+    # currently don't save the labels
+    del run_config['test_dataset']['labels']
 
     project_name = config['data_config']['name']
     save_root_path = os.path.join(dataset_path, project_name, 'reconstructed')
@@ -154,8 +229,8 @@ def generate_embeddings_reconstruction(config,train,test):
     if not os.path.exists(save_root_path):
         os.mkdir(save_root_path)
 
-    test_name = config['data_config']['test_name']
-    save_path = os.path.join(save_root_path, config['data_config']['test_name'][:-4])
+    test_name = config['data_config']['filename']
+    save_path = os.path.join(save_root_path, test_name[:-3])
     if not os.path.exists(save_path):
         os.mkdir(save_path)
 
@@ -181,6 +256,11 @@ def generate_embeddings_reconstruction(config,train,test):
         np.save(embedding_path, test_embeddings)
         print('test embeddings saved')
 
+        # save clusters
+        cluster_path=os.path.join(save_path,'clusters_train.npy')
+        np.save(cluster_path,test_clusters)
+        print('test clusters saved')
+
     if train:
         # save original train data
         train_original_path = os.path.join(save_path, 'original_train.npy')
@@ -197,28 +277,35 @@ def generate_embeddings_reconstruction(config,train,test):
         np.save(embedding_path, train_embeddings)
         print('train embeddings saved')
 
+        # save clusters
+        cluster_path=os.path.join(save_path,'clusters_train.npy')
+        np.save(cluster_path,train_clusters)
+        print('train embeddings saved')
+
 if __name__=='__main__':
     device='cuda:0'
-    config_path='/home/roton2/PycharmProjects/TREBA/configs/Schwartz_mouse/apply.json'
+    config_file='apply_3.json'
+    model_file = 'run_3_pretrain'
+    config_path=f'/home/roton2/PycharmProjects/TREBA/configs/Schwartz_mouse/{config_file}'
 
     dataset_path= "/home/roton2/PycharmProjects/TREBA/util/datasets"
-    best_result_path='/home/roton2/PycharmProjects/TREBA/saved/Schwartz_mouse/run/best.pth'
-    run_config_path= '/home/roton2/PycharmProjects/TREBA/saved/Schwartz_mouse/run/summary.json'
+    best_result_path=f'/home/roton2/PycharmProjects/TREBA/saved/Schwartz_mouse/{model_file}/best.pth'
+    run_config_path= f'/home/roton2/PycharmProjects/TREBA/saved/Schwartz_mouse/{model_file}/summary.json'
 
     root_dir='/home/roton2/PycharmProjects/TREBA'
-    train=False
-    test=True
+    train=True
+    test=False
 
     with open(config_path, 'r') as f:
         config = json.load(f)
 
-    session_idx=np.arange(0,24)
-    for idx in session_idx:
-        config['data_config']['test_name']=f'3D_False_idx_{idx}_test.npz'
-        generate_embeddings_reconstruction(config,train,test)
-        print(f'saved session id: {idx}')
+    #session_idx=np.arange(0,24)
+    #for idx in session_idx:
+    #    config['data_config']['test_name']=f'3D_False_idx_{idx}_test.npz'
+    #    generate_embeddings_reconstruction(config,train,test)
+    #    print(f'saved session id: {idx}')
 
-
+    generate_embeddings_reconstruction(config, train,test)
 
 
 

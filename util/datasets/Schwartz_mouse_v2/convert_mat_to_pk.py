@@ -143,6 +143,7 @@ if __name__=='__main__':
                         help='whether to shuffle the trajectories before saving.')
     parser.add_argument('--threeD_pose',action='store_true',required=False,
                         help='if 3d pose is True, we add z information of the reconstruction 3D pose trajectories. Otherwise we look at 2D pose trajectories from top camera')
+    # TODO: add indexing code for the individual session
     # here we only generate data_all/data_train/data_test.
     # data_all is the same order with the original .mat file
     # data_train is shuffled for the training (only the sessions. not the sequences)
@@ -152,7 +153,7 @@ if __name__=='__main__':
 
     # read .mat file
     file=sio.loadmat(args.input_path)
-    dlc_raw=file['sessions']['dlc_raw']
+    dlc_raw=file['sessions']['dlc_raw'][90:236] # TODO: temporarily select most non habituation set
 
     # currently we don't need to calculate features/labels
     '''
@@ -225,7 +226,7 @@ if __name__=='__main__':
         if 'test' in args.input_path:
             save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_test.pk'
         else:
-            save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_train.pk'
+            save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_train_small.pk'
         with open(save_path, 'wb') as f:
             pickle.dump(all_data, f)
 

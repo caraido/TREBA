@@ -8,31 +8,61 @@
         "filename": "3D_False_train.pk",
         "test_save_path": "./util/datasets/Schwartz_mouse_v2/labels/test_labels.json",
         "label_train_set": true,
-        "new_threshold": true,
+        "new_threshold": false,
         "labels": [
             {
                 "name": "distance_between_ears",
-                "thresholds": [0.41567189, 0.46301466, 0.51035744, 0.60351574]
+                "thresholds": [
+                0.011724962745057278,
+                0.030989438319375326,
+                0.06702160008770983,
+                0.1497948757518946
+            ]
             },
             {
                 "name": "skullbase_to_tailbase_length",
-                "thresholds": [0.39965397, 2.3908603, 7.966238, 22.302923]
+                "thresholds": [
+                0.02056624255351794,
+                0.057551501473444115,
+                0.13274580805596997,
+                0.3171494398208872
+            ]
             },
             {
                 "name": "head_body_ratio",
-                "thresholds": [0.915437, 3.7915564, 11.635472, 26.015985]
+                "thresholds": [
+                0.8283559360778454,
+                1.1072024826566065,
+                2.0447201464520846,
+                4.535046472900453
+            ]
             },
             {
                 "name": "head_body_angle",
-                "thresholds": [-0.32498848, 0.02255473, 0.28941828, 0.5686941]
+                "thresholds": [
+                1.5707963231332644,
+                1.5707963266740004,
+                1.5707963268735265,
+                1.5707963297447012
+            ]
             },
             {
                 "name": "body_hip_angle",
-                "thresholds": [-0.32498848, 0.02255473, 0.28941828, 0.5686941]
+                "thresholds": [
+                1.5707963247875443,
+                1.5707963267615825,
+                1.570796327132426,
+                1.570796332201129
+            ]
             },
             {
                 "name": "speed",
-                "thresholds": [-0.32498848, 0.02255473, 0.28941828, 0.5686941]
+                "thresholds": [
+                0.07146779073413875,
+                0.1851961186504823,
+                0.3690811070234687,
+                0.7118760518458737
+            ]
             }
         ]    
     },
@@ -51,7 +81,7 @@
 		"restart_threshold": 0.001
     },
     "train_config": {
-        "batch_size": 512,
+        "batch_size": 8192,
         "checkpoint_freq": 999,
         "learning_rate": 0.0002,
         "num_epochs": [400],
