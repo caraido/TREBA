@@ -103,14 +103,30 @@ class TrajectoryDataset(Dataset):
 
         if self.config['new_threshold']:
             new_threshold_path=f'./util/datasets/{self.name}/labels/label_threshold.json'
+            try:
+                new_threshold_path=self.config['new_threshold_path']
+            except:
+                pass
+            if not os.path.exists(os.path.split(new_threshold_path)[0]):
+                os.makedirs(os.path.split(new_threshold_path)[0])
             with open(new_threshold_path,'w') as f:
                 thresholds_dict=[{'name':a['name'],'thresholds':a['thresholds']} for a in self.config['labels']]
                 json.dump({'labels':thresholds_dict},f,indent=4)
 
+
+        train_save_path = f'./util/datasets/{self.name}/labels/train_labels.json'
+        test_save_path = f'./util/datasets/{self.name}/labels/test_labels.json'
+        try:
+            train_save_path = self.config['train_labels_path']
+        except:
+            pass
+        try:
+            test_save_path = self.config['test_labels_path']
+        except:
+            pass
+
         if self.label_train_set:
             # TODO: need to move this out
-            train_save_path = f'./util/datasets/{self.name}/labels/train_labels.json'
-            test_save_path=f'./util/datasets/{self.name}/labels/test_labels.json'
             if os.path.exists(train_save_path):
                 with open(train_save_path, 'rb') as myfile:
                     self.train_lf_labels = pickle.load(myfile)
@@ -118,23 +134,40 @@ class TrajectoryDataset(Dataset):
                 self.train_lf_labels = self.label_data(self.train_states,
                                                        self.train_actions,
                                                        self.train_labels)
+                if not os.path.exists(os.path.split(train_save_path)[0]):
+                    os.makedirs(os.path.split(train_save_path)[0])
                 with open(train_save_path, 'wb') as myfile:
                     pickle.dump(self.train_lf_labels, myfile)
+        else:
+            self.train_lf_labels = []
 
-        if os.path.exists(self.config['test_save_path']):
+        if os.path.exists(test_save_path):
             print("Loading test set")
-            with open(self.config['test_save_path'], 'rb') as myfile:
+            with open(test_save_path, 'rb') as myfile:
                 self.test_lf_labels = pickle.load(myfile)
         else:
             print("Labeling test set")
             self.test_lf_labels = self.label_data(self.test_states,
                                                   self.test_actions,
                                                   self.test_labels)
-            with open(self.config['test_save_path'], 'wb') as myfile:
+            if not os.path.exists(os.path.split(test_save_path)[0]):
+                os.makedirs(os.path.split(test_save_path)[0])
+            with open(test_save_path, 'wb') as myfile:
                 pickle.dump(self.test_lf_labels, myfile)
 
         # MAY NEED CONTEXT LABELS
         ctxt_train_save_path = f'./util/datasets/{self.name}/labels/ctxt_train_labels.json'
+        ctxt_test_save_path = f'./util/datasets/{self.name}/labels/ctxt_test_labels.json'
+        try:
+            ctxt_train_save_path=self.config['ctxt_train_labels_path']
+        except:
+            pass
+
+        try:
+            ctxt_test_save_path=self.config['ctxt_test_labels_path']
+        except:
+            pass
+
         if self.label_train_set:
             if os.path.exists(ctxt_train_save_path):
                 with open(ctxt_train_save_path, 'rb') as myfile:
@@ -143,21 +176,25 @@ class TrajectoryDataset(Dataset):
                 self.train_ctxt_lf_labels = self.label_context_data(self.train_ctxt_states,
                                                                     self.train_ctxt_actions,
                                                                     None)
+                if not os.path.exists(os.path.split(ctxt_train_save_path)[0]):
+                    os.makedirs(os.path.split(ctxt_train_save_path)[0])
                 with open(ctxt_train_save_path, 'wb') as myfile:
                     pickle.dump(self.train_ctxt_lf_labels, myfile)
         else:
             self.train_ctxt_lf_labels = []
 
-        if os.path.exists(self.config['ctxt_test_save_path']):
+        if os.path.exists(ctxt_test_save_path):
             print("Loading test set context")
-            with open(self.config['ctxt_test_save_path'], 'rb') as myfile:
+            with open(ctxt_test_save_path, 'rb') as myfile:
                 self.test_ctxt_lf_labels = pickle.load(myfile)
         else:
             print('Labeling test set context')
             self.test_ctxt_lf_labels = self.label_context_data(self.test_ctxt_states,
                                                                self.test_ctxt_actions,
                                                                None)
-            with open(self.config['ctxt_test_save_path'], 'wb') as myfile:
+            if not os.path.exists(os.path.split(ctxt_test_save_path)[0]):
+                os.makedirs(os.path.split(ctxt_test_save_path)[0])
+            with open(ctxt_test_save_path, 'wb') as myfile:
                 pickle.dump(self.test_ctxt_lf_labels, myfile)
 
         # Compute statistics for label distributions

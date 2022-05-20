@@ -19,7 +19,7 @@ def generate_clusters(data, n_clusters,method:str, model=None):
 
 if __name__=='__main_':
     reconstructed_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed'
-    cluster_model_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/cluster_models'
+    cluster_model_path= '/util/datasets/Schwartz_mouse_v1/cluster_models'
     folder_name='3D_False_all'
     embeddings_name='embeddings_all.npy'
     bodyparts_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/data/3D_False_bodyparts.pk'

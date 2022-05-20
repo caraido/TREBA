@@ -182,26 +182,26 @@ class VQTripletTREBA_model(TREBA_model):
         elif self.stage >= 2 or not self.loss_params['consistency_loss_weight'] > 0:
             # Encode
             posterior = self.encode(states[:-1], actions=actions, labels=labels)
+            if not embed:
+                # Compute the contextual embedding
+                z_ctxt = self.compute_context(ctxt_states, ctxt_actions, ctxt_labels_dict)
+                # Find the negatives satisfying conditions specified in config
+                n_states, n_actions, n_labels = self.find_negatives(states, actions, labels_dict)
 
-            # Compute the contextual embedding
-            z_ctxt = self.compute_context(ctxt_states, ctxt_actions, ctxt_labels_dict)
-            # Find the negatives satisfying conditions specified in config
-            n_states, n_actions, n_labels = self.find_negatives(states, actions, labels_dict)
+                # Compute the embedding of the negative
+                z_n = self.encode(n_states[:-1], actions=n_actions, labels=n_labels).mean
 
-            # Compute the embedding of the negative
-            z_n = self.encode(n_states[:-1], actions=n_actions, labels=n_labels).mean
-
-            # Compute the triplet loss
-            self.log.losses['triplet'], _, _ = compute_triplet_loss(
-                posterior.mean,
-                z_n,
-                z_ctxt,
-                margin=self.config['margin'],
-                loss_weight=self.config['triplet_loss_weight']
-            )
+                # Compute the triplet loss
+                self.log.losses['triplet'], _, _ = compute_triplet_loss(
+                    posterior.mean,
+                    z_n,
+                    z_ctxt,
+                    margin=self.config['margin'],
+                    loss_weight=self.config['triplet_loss_weight']
+                )
 
             # Quantize
-            z_q_x_st, z_q_x = self.codebook.straight_through(posterior.mean)
+            z_q_x_st, z_q_x,indices = self.codebook.straight_through(posterior.mean)
 
             # Compute quantization_loss
             self.log.losses['quantization'] = compute_quantization_loss(
@@ -289,4 +289,6 @@ class VQTripletTREBA_model(TREBA_model):
                         assert rollout_lf_labels.size() == lf_labels.size()
                         self.log.metrics['{}_true'.format(lf.name)] = torch.sum(rollout_lf_labels * lf_labels.cpu())
 
+        if embed:
+            return self.log, indices, z_q_x_st,posterior.mean
         return self.log

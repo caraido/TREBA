@@ -57,4 +57,4 @@ class VQEmbedding(nn.Module):
         )
         z_q_x_bar_ = z_q_x_bar_flatten.view_as(z_e_x_)
 
-        return z_q_x_, z_q_x_bar_
+        return z_q_x_, z_q_x_bar_,indices

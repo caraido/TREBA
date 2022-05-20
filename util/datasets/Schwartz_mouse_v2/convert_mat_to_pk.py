@@ -13,7 +13,7 @@ Script for converting unlabeled videos from Schwartz lab behavior data .mat into
 The .npz files are stacked trajectories of length N.
 there are in total 449 sessions
 '''
-default_input_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/SchwartzLabSocialBehavior_train.mat'
+default_input_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/SchwartzLabSocialBehavior.mat'
 default_output_folder ='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data/'
 default_config_path = '/home/roton2/PycharmProjects/TREBA/configs/Schwartz_mouse/run_2.json'
 
@@ -143,29 +143,26 @@ if __name__=='__main__':
                         help='whether to shuffle the trajectories before saving.')
     parser.add_argument('--threeD_pose',action='store_true',required=False,
                         help='if 3d pose is True, we add z information of the reconstruction 3D pose trajectories. Otherwise we look at 2D pose trajectories from top camera')
-    # TODO: add indexing code for the individual session
+    parser.add_argument('--session_id', type=int, default=-1,required=False,
+                        help='if there is session id. a specific session will be picked out.')
     # here we only generate data_all/data_train/data_test.
     # data_all is the same order with the original .mat file
     # data_train is shuffled for the training (only the sessions. not the sequences)
     # data_test is only 5 sessions, shuffled(only the sessions. no the sequences)
 
     args=parser.parse_args()
-
+    #args.session_id=49
     # read .mat file
     file=sio.loadmat(args.input_path)
-    dlc_raw=file['sessions']['dlc_raw'][90:236] # TODO: temporarily select most non habituation set
-
+    #dlc_raw=file['sessions']['dlc_raw'][90:236] # TODO: temporarily select most non habituation set
+    if args.session_id==-1:
+        dlc_raw=file['sessions']['dlc_raw']
+        index=''
+    else:
+        dlc_raw=file['sessions']['dlc_raw'][args.session_id,np.newaxis]
+        index='_'+str(args.session_id)
     # currently we don't need to calculate features/labels
-    '''
-    # here they call it labels, but we know it's the features.
-    # labels should be independent of the window information I think?
-    # right now we use head_position_arc, body_speed, gaze_bino_outer, gaze_left_outer, gaze_right_outer,
-    true_labels_dict = {'head_position_arc': list(file['sessions']['head_position_arc'][:,0]),
-                        'body_speed': list(file['sessions']['body_speed'][:,0]),
-                        'gaze_bino_outer': list(file['sessions']['gaze_bino_outer'][:,0]),
-                        'gaze_left_outer': list(file['sessions']['gaze_left_outer'][:,0]),
-                        'gaze_right_outer': list(file['sessions']['gaze_right_outer'][:,0])}
-    '''
+
 
     # get the name of body parts and the list of trajectories for each session
     trajectory_dict = {}
@@ -195,11 +192,10 @@ if __name__=='__main__':
             trajectory_dict[i]=pose
 
     # shuffle the session
-    # we need to remember the order of shuffle! --by saving it in shuffled_index
+    # we need to remember the order of shuffle! --by saving it in shuffled_index (not implemented there)
     trajectory_list = list(trajectory_dict.items())
     if not args.no_shuffle:
         random.shuffle(trajectory_list)
-
 
     if 0 < args.data_split <= 1:
         train_set_size=int(args.data_split*len(trajectory_list))
@@ -208,13 +204,13 @@ if __name__=='__main__':
         train_set=dict(trajectory_list[:train_set_size])
         print("Saving array of size: "+str(len(train_set)))
 
-        save_path=args.output_path + '3D_'+str(args.threeD_pose)+'_train.pk'
+        save_path=args.output_path + '3D_'+str(args.threeD_pose)+'_train'+index+'.pk'
         with open(save_path,'wb') as f:
             pickle.dump(train_set,f)
 
         val_set=dict(trajectory_list[train_set_size:])
         print("Saving array of size: " + str(len(val_set)))
-        save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_val.pk'
+        save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_val'+index+'.pk'
         with open(save_path, 'wb') as f:
             pickle.dump(val_set, f)
 
@@ -224,9 +220,9 @@ if __name__=='__main__':
         print("Saving array of size: " + str(len(all_data)))
 
         if 'test' in args.input_path:
-            save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_test.pk'
+            save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_test'+index+'.pk'
         else:
-            save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_train_small.pk'
+            save_path = args.output_path + '3D_' + str(args.threeD_pose) + '_train'+index+'.pk'
         with open(save_path, 'wb') as f:
             pickle.dump(all_data, f)
 

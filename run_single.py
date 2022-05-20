@@ -40,7 +40,7 @@ parser.add_argument('--feature_names', type=str,
                     help='paths to save extracted features')                                        
 args = parser.parse_args()
 args.index=6 # ix of the config file
-args.device=0
+args.device=1
 
 # Get JSON files
 config_dir = os.path.join(os.getcwd(), 'configs', args.config_dir)

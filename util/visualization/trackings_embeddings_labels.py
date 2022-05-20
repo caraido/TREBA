@@ -24,8 +24,8 @@ def single_alignment_2D(trajectory: np.ndarray, t_matrix, r_matrix):
 
 if __name__=='__main__':
     # get the path for the data
-    raw_data_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/data'
-    reconstructed_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed'
+    raw_data_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data'
+    reconstructed_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed'
     all_embeddings_path=os.path.join(reconstructed_path,'3D_False_all','embeddings_all.npy')
     all_annot_path=os.path.join(reconstructed_path,'3D_False_all','clusters_15_gmm_embeddings_all.npy')
     bodyparts_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/data/3D_False_bodyparts.pk'

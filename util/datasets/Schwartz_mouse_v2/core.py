@@ -171,11 +171,11 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
         self.test_states,
         self.test_actions,
         self.test_ctxt_states,
-        self.test_ctxt_actions) = self._load_and_preprocess(train=True) # TODO: need to change this!
+        self.test_ctxt_actions) = self._load_and_preprocess() # TODO: need to change this!
 
-    def _load_and_preprocess(self,train:bool):
+    def _load_and_preprocess(self,):
         global new_bodyparts
-        path = os.path.join(ROOT_DIR, TRAIN_FILE if train else self.test_name)
+        path = os.path.join(ROOT_DIR, TRAIN_FILE)
         body_path=os.path.join(ROOT_DIR,BODYPARTS)
         with open(body_path,'rb') as f:
             bodyparts = pickle.load(f)
@@ -203,7 +203,7 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
         if self.compute_svd:
             data_combined = data_combined.reshape((-1, 1, int(len(new_bodyparts)/2), 2))
             # Input [seq_num x seq_len, 1 mouse, 7 bodyparts, 2 xy]
-            if train and self._svd_computer is None:
+            if self._svd_computer is None:
                 data_svd, self._svd_computer, self._svd_mean = transform_to_svd_components(
                     data_combined, new_bodyparts,center_index=int(new_bodyparts.index('skull_base_x')/2), n_components=self.compute_svd,
                     svd_computer=self._svd_computer, mean=self._svd_mean,
@@ -232,7 +232,6 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
                 self.config['labels'][i]['thresholds']=percentile
         del data_combined,data_svd
         gc.collect()
-
 
         # Preprocess invidual videos to make context now
         print('Now preprocessing all videos ...')
