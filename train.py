@@ -52,22 +52,7 @@ def run_epoch(data_loader, model, device, epoch, train=True, early_break=False, 
                 ctxt_actions,
                 ctxt_labels_dict
             )
- 
-        # TODO: need to implement this
-        #biggest_loss = np.array([loss.detach().cpu().numpy() for loss_name, loss in batch_log.losses.items()]).max()
-        #print(batch_log)
-        if weight_losses:
-            batch_log.losses['nll'] = batch_log.losses['nll'] * 1
-            batch_log.losses['triplet'] = batch_log.losses['triplet'] #*3000
-            batch_log.losses['quantization'] = batch_log.losses['quantization'] #* 30000000
-            batch_log.losses['decoded_LF00_distance_between_ears_Threshold'] = batch_log.losses['decoded_LF00_distance_between_ears_Threshold'] * 2
-            batch_log.losses['decoded_LF01_skullbase_to_tailbase_length_Threshold'] = batch_log.losses['decoded_LF01_skullbase_to_tailbase_length_Threshold'] * 2
-            batch_log.losses['decoded_LF02_head_body_ratio_Threshold'] = batch_log.losses['decoded_LF02_head_body_ratio_Threshold'] * 2
-            batch_log.losses['decoded_LF03_head_body_angle_Threshold'] = batch_log.losses['decoded_LF03_head_body_angle_Threshold'] * 2
-            batch_log.losses['decoded_LF04_body_hip_angle_Threshold'] = batch_log.losses[
-                                                                             'decoded_LF04_body_hip_angle_Threshold'] * 2
-            batch_log.losses['decoded_LF05_speed_Threshold'] = batch_log.losses[
-                                                                             'decoded_LF05_speed_Threshold'] * 2
+
                 
         if train:
             model.optimize(batch_log.losses)

@@ -18,3 +18,4 @@ downstream_tasks/fly_classification/classifier_logs/
 /util/datasets/Schwartz_mouse_v2/reconstructed/
 /util/datasets/Schwartz_mouse_v2/svd/
 /util/datasets/Schwartz_mouse_v2/labels/
+/util/datasets/Schwartz_mouse_v2/features/

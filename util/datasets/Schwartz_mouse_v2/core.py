@@ -33,7 +33,6 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
     align_data=True
     compute_svd=False
 
-    test_name=TEST_FILE
 
     def __init__(self,data_config):
         super().__init__(data_config)
@@ -125,8 +124,6 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
         if 'compute_svd' in self.config:
             assert isinstance(self.config['compute_svd'], int)
             self.compute_svd = self.config['compute_svd']
-        if 'test_name' in self.config:
-            self.test_name = self.config['test_name']
 
         # what does this do?
         if 'filename' in self.config:
@@ -173,8 +170,17 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
         self.test_ctxt_states,
         self.test_ctxt_actions) = self._load_and_preprocess() # TODO: need to change this!
 
+    def compute_subsample(self,vid_dict,context_dict):
+        for k, _ in vid_dict.items():
+            vid_dict[k]=vid_dict[k][::self.subsample]
+            context_dict[k]=context_dict[k][::self.subsample]
+        return vid_dict,context_dict
+
     def _load_and_preprocess(self,):
         global new_bodyparts
+        #PROJECT_ABSOLUTE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        #print('PROJECT_ABSOLUTE_PATH:%s' % PROJECT_ABSOLUTE_PATH)
+        print(ROOT_DIR)
         path = os.path.join(ROOT_DIR, TRAIN_FILE)
         body_path=os.path.join(ROOT_DIR,BODYPARTS)
         with open(body_path,'rb') as f:
@@ -239,7 +245,12 @@ class SchwartzMouseV2Dataset(TrajectoryDataset):
 
         # Make context
         print('Now making context ...')
-        context_data = self.make_3_context(data,traj_len=10) # TODO: do not hard code this
+        context_data = self.make_3_context(data,traj_len=self.config["traj_len"])
+
+        # subsample the video
+        if 'subsample' in self.config:
+            print(f'Subsampling sequences centered {self.config["subsample"]} frames apart from one and another')
+            data,context_data=self.compute_subsample(data,context_data)
 
         # Combine and compute states and actions
         states, actions = self.states_and_actions(data)

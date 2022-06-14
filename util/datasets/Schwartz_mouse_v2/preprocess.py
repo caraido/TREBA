@@ -7,8 +7,8 @@ from numba import jit
 FRAME_WIDTH_TOP=1280
 FRAME_HEIGHT_TOP=1024
 # SVD paths
-svd_computer_path = 'util/datasets/Schwartz_mouse_v2/svd/Schwartz_mouse_svd_computer.pickle'
-mean_path = 'util/datasets/Schwartz_mouse_v2/svd/Schwartz_mouse_mean.pickle'
+svd_computer_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/svd/Schwartz_mouse_svd_computer.pickle'
+mean_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/svd/Schwartz_mouse_mean.pickle'
 
 def normalize(data:np.ndarray,bodyparts:list):
     """Scale by the median length/original length."""

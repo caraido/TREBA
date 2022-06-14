@@ -95,12 +95,20 @@ class TREBA_model(BaseSequentialModel):
                     nn.GRU(state_dim+action_dim, label_rnn_dim, 
                         num_layers=num_layers, bidirectional=True) for lf in self.label_functions])
 
-                self.label_approx_fc = nn.ModuleList([nn.Sequential(
-                    nn.Linear(2*label_rnn_dim, h_dim),
-                    nn.ReLU(),
-                    nn.Linear(h_dim, h_dim),
-                    nn.ReLU(),            
-                    nn.Linear(h_dim, lf.output_dim)) for lf in self.label_functions])
+                if 'num_bins' in self.config:
+                    self.label_approx_fc = nn.ModuleList([nn.Sequential(
+                        nn.Linear(2 * label_rnn_dim, h_dim),
+                        nn.ReLU(),
+                        nn.Linear(h_dim, h_dim),
+                        nn.ReLU(),
+                        nn.Linear(h_dim, self.config['num_bins'])) for lf in self.label_functions])
+                else:
+                    self.label_approx_fc = nn.ModuleList([nn.Sequential(
+                        nn.Linear(2 * label_rnn_dim, h_dim),
+                        nn.ReLU(),
+                        nn.Linear(h_dim, h_dim),
+                        nn.ReLU(),
+                        nn.Linear(h_dim, lf.output_dim)) for lf in self.label_functions])
 
             # Contrastive loss of labels programmatically supervised by the functions.
             if self.loss_params['contrastive_loss_weight'] > 0:
@@ -137,9 +145,9 @@ class TREBA_model(BaseSequentialModel):
         self.codebook_usage[unq] += counts
 
     def _define_losses(self):
+        self.log.add_loss('kl_div')
         self.log.add_loss('nll')
-        self.log.add_loss('triplet')
-        self.log.add_loss('quantization')
+        self.log.add_metric('kl_div_true')
 
         # Handle labeling function cases.
         if len(self.label_functions) > 0:

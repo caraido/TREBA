@@ -11,6 +11,11 @@ from sklearn.metrics import silhouette_score as slts
 import seaborn as sns
 import pandas as pd
 import matplotlib.pylab as pl
+sudoPassword = 'Aggressi0n!'
+def set_nice(n):
+    pid = os.getpid()
+    os.system(f"sudo renice -n {n} -p {pid}")
+    #os.system(sudoPassword)
 
 def silhouette_score(model, data):
     labels=model.fit_predict(data)
@@ -112,15 +117,20 @@ class model_wrapper:
 
         return self.metrics(model, self.data)
 
-if __name__=='_main__':
+if __name__=='__main__':
+    import os
     downsample_rate=0.01 # only 1% of the data will be used for visualization
-    embedding_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed/3D_False_all/embeddings_all.npy'
-
+    root_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/all/3D_False_all/run_7'
+    embedding_path=os.path.join(root_path,'embeddings_all.npy')
+    save_path=os.path.join(root_path,'cluster_num_visualization.pdf')
     embeddings=np.load(embedding_path)
     draw=np.random.choice(len(embeddings), int(len(embeddings)*downsample_rate),replace=False)
-    embeddings=embeddings[draw,:]
+    #embeddings=embeddings[::21,:]
+    embeddings=embeddings[draw]
     # apply clustering directly on the embedding
-    n_clusters=list(range(5,115,10))
+    n_clusters=list(range(5,60,5))
+
+    #set_nice(-11)
 
     # initialization of the pool
     pool=Pool(processes=10)
@@ -179,5 +189,6 @@ if __name__=='_main__':
     ax4.tick_params(axis='y', labelcolor='b')
 
     plt.tight_layout()
+    plt.savefig(save_path)
     plt.show()
 

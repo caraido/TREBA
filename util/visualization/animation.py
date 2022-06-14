@@ -46,7 +46,7 @@ def draw_skeleton(ax, pose:np.ndarray,color='grey',alpha=1):
 def find_maxmin(trajectories):
     max_x=max_y=0
     min_x=min_y=10e6
-
+    trajectories=trajectories.reshape(-1,trajectories.shape[-1])
     if trajectories.shape[-1]==16 or trajectories.shape[-1]==14:
         for i in range(int(trajectories.shape[-1]/2)):
             x=trajectories[:,i*2]
@@ -135,8 +135,10 @@ def stack_all_trajectory(trajectory:np.ndarray,skip=1):
 
 if __name__=='__main__':
     # need to note that all the testing dataset has a skip=1. A lot of overlaps
-    folder_name='3D_False_train_94'
-    reconstructed_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed'
+    #folder_name='run_8'
+    #reconstructed_path = f'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/all/3D_False_all'
+    reconstructed_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed'
+    folder_name='3D_False_all'
     bodyparts_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data/3D_False_bodyparts.pk' # temporary solution
     folder_path=os.path.join(reconstructed_path,folder_name)
     all_items=os.listdir(folder_path)

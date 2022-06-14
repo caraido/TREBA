@@ -4,7 +4,6 @@ import numpy as np
 import shutil
 
 from util.datasets import load_dataset
-from util.datasets.Schwartz_mouse_v1.core import ROOT_DIR
 import torch
 from lib.models import get_model_class
 from torch.utils.data import DataLoader
@@ -36,16 +35,16 @@ def reconstruction(data_loader, model):
         #ctxt_actions = ctxt_actions.transpose(0, 1)
 
         # encode
-        _,cluster,z_q_x_st,embedding=model(states,actions,labels_dict,
+        _,embedding=model(states,actions,labels_dict,
                                           ctxt_states,ctxt_actions,ctxt_labels_dict,
                                           embed=True)
-        '''
-        labels = None
-        if len(labels_dict) > 0:
-            labels = torch.cat(list(labels_dict.values()), dim=-1)
+
+        #labels = None
+        #if len(labels_dict) > 0:
+        #    labels = torch.cat(list(labels_dict.values()), dim=-1)
 
         # z=codebook vector
-        model.reset_policy(labels=labels, z=z_q_x_st)
+        #model.reset_policy(labels=labels, z=embedding)
 
         # decode
         actions_hat = []
@@ -55,7 +54,8 @@ def reconstruction(data_loader, model):
         # get states estimation from the posterior distribution
         for t in range(actions.size(1)):
             # decode action
-            new_action = model.act(states[:,t])
+            #new_action = model.act(states[:,t])
+            new_action = model.decode_action(states[:,t]).mean
             # reconstruct state from the action
             if t == 0:
                 new_state = states[:,0] + new_action
@@ -63,12 +63,14 @@ def reconstruction(data_loader, model):
                 new_state = new_state + new_action
             actions_hat.append(new_action)
             states_hat.append(new_state)
+            if model.is_recurrent:
+                model.update_hidden(states[:,t], actions[:,t])
 
         states_hat = torch.stack(states_hat)
         new_states.append(torch.squeeze(states_hat).cpu().detach().numpy())
-        '''
+
         all_embeddings.append(torch.squeeze(embedding).cpu().detach().numpy())
-        clusters.append(int(torch.squeeze(cluster).cpu().detach().numpy()))
+        #clusters.append(int(torch.squeeze(cluster).cpu().detach().numpy()))
 
     new_states = np.array(new_states)
     all_embeddings = np.array(all_embeddings)
@@ -126,13 +128,13 @@ def reconstruction(data_compound,model,labels_dict=None):
     return all_embeddings,new_states
 '''
 
-def get_data(config):
+def get_data(config,batch_size=1):
     # load data to the dataloader
     dataset=load_dataset(config)
-    data_loader=DataLoader(dataset,batch_size=1,shuffle=False)
+    data_loader=DataLoader(dataset,batch_size=batch_size,shuffle=False)
     return dataset, data_loader
 
-def get_model(config,dataset):
+def get_model(config,dataset,device=0):
     model_config = config
     model_config['state_dim'] = dataset.state_dim
     model_config['action_dim'] = dataset.action_dim
@@ -152,12 +154,13 @@ def prepare_model(model, state_dict):
     #model=model.eval()
     return model
 
-def generate_embeddings_reconstruction(config,train,test):
+def generate_embeddings_reconstruction(config,train,test,config_name=None):
     dataset, data_loader = get_data(config['data_config'])
     # get model config and initialize the model
     config['model_config']['num_bins'] =config['data_config']['num_bins']
     model = get_model(config['model_config'],dataset)
-
+    model.stage=2
+    model.device=1
     # prepare model
     state_dict = torch.load(best_result_path)
     model = prepare_model(model, state_dict)
@@ -203,9 +206,9 @@ def generate_embeddings_reconstruction(config,train,test):
         # for test data
         if test:
             test_shape = test_original.shape
-            #test_reconstructed = test_reconstructed.reshape(-1, test_shape[-1])
-            #test_reconstructed = transform_svd_to_keypoints(test_reconstructed, svd_computer, bp_mean)
-            #test_reconstructed = test_reconstructed.reshape(test_shape[0], test_shape[1], -1)
+            test_reconstructed = test_reconstructed.reshape(-1, test_shape[-1])
+            test_reconstructed = transform_svd_to_keypoints(test_reconstructed, svd_computer, bp_mean)
+            test_reconstructed = test_reconstructed.reshape(test_shape[0], test_shape[1], -1)
 
             test_original = test_original.reshape(-1, test_shape[-1])
             test_original = transform_svd_to_keypoints(test_original, svd_computer, bp_mean)
@@ -235,9 +238,10 @@ def generate_embeddings_reconstruction(config,train,test):
         os.mkdir(save_root_path)
 
     test_name = config['data_config']['filename']
-    save_path = os.path.join(save_root_path, test_name[:-3])
+    save_path = os.path.join(save_root_path,test_name[:-3],config_name)
+    print(f'save directory is; {save_path}')
     if not os.path.exists(save_path):
-        os.mkdir(save_path)
+        os.makedirs(save_path)
 
     # save the model,dataset,test dataset, training information
     #information_path = os.path.join(save_path, 'information.json')
@@ -252,8 +256,8 @@ def generate_embeddings_reconstruction(config,train,test):
         print('original test data saved')
 
         # save reconstructed test data
-        #test_reconstructed_path = os.path.join(save_path, 'reconstructed_all.npy')
-        #np.save(test_reconstructed_path, test_reconstructed)
+        test_reconstructed_path = os.path.join(save_path, 'reconstructed_all.npy')
+        np.save(test_reconstructed_path, test_reconstructed)
         print('reconstructed test data saved')
 
         # save the test embeddings
@@ -288,13 +292,17 @@ def generate_embeddings_reconstruction(config,train,test):
         print('train embeddings saved')
 
 if __name__=='__main__':
+
     device='cuda:0'
-    config_file='apply_4.json'
-    model_file = 'run_4'
-    config_path=f'/home/roton2/PycharmProjects/TREBA/configs/Schwartz_mouse/{config_file}'
+    #config_file='apply_5.json'
+    model_file = 'last_one'
+
+    #config_path=f'/home/roton2/PycharmProjects/TREBA/configs/Schwartz_mouse/{config_file}'
+    config_path = f'/home/roton2/PycharmProjects/TREBA/configs/Schwartz_mouse/{model_file}.json'
+    label_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/labels/'
 
     dataset_path= "/home/roton2/PycharmProjects/TREBA/util/datasets"
-    best_result_path=f'/home/roton2/PycharmProjects/TREBA/saved/Schwartz_mouse/{model_file}/checkpoints/checkpoint_100.pth'
+    best_result_path=f'/home/roton2/PycharmProjects/TREBA/saved/Schwartz_mouse/{model_file}/best.pth'
     run_config_path= f'/home/roton2/PycharmProjects/TREBA/saved/Schwartz_mouse/{model_file}/summary.json'
 
     train=False
@@ -311,20 +319,38 @@ if __name__=='__main__':
     # get data here
     # get model here
     # change this into generate_embedding_reconstruction(data, model)
-    for id in [95,96,97,98,99,99,100,101,134,135,136,137,138,139,140,141]:
-    #id=94
-        foldername=f'3D_False_train_{id}'
-        #foldername=f'3D_False_all'
+    # for id in [95,96,97,98,99,99,100,101,134,135,136,137,138,139,140,141]:
+    names=os.listdir('/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data/all')
+    #names.remove('3D_False_bodyparts.pk')
+    #names.remove('README.md')
+    for name in names:
+        #id=0
+        #foldername=f'habituations/3D_False_train_{id}'
+        #foldername=f'all/3D_False_all'
+        foldername=f'all/{name[:-3]}'
+
+        # filename defines the name of the file you would like to run
+        config['data_config']['root_data_directory']="/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data"
         config['data_config']['filename']=f'{foldername}.pk'
-        config['data_config']['train_labels_path']=f'util/datasets/Schwartz_mouse_v2/labels/cagmates/{foldername}/train_labels.json'
+        # subsample needs to be set to 1 for session reconstruction. 21/7 for whole dataset reconstruction
+        config['data_config']['subsample']=21
+        # set the test set
+        config['data_config']['label_train_set']=False
+        config['data_config']['val_prop']=1
+        #config['data_config']['traj_len'] = 20
+
+        # set the label paths
+
+        config['data_config']['train_labels_path']=label_path+f'{foldername}/{model_file}/train_labels.json'
         config['data_config'][
-            'test_labels_path'] = f'util/datasets/Schwartz_mouse_v2/labels/cagmates/{foldername}/test_labels.json'
+            'test_labels_path'] = label_path+f'{foldername}/{model_file}/test_labels.json'
+
         config['data_config'][
-            'ctxt_test_labels_path'] = f'util/datasets/Schwartz_mouse_v2/labels/cagmates/{foldername}/ctxt_test_labels.json'
+            'ctxt_test_labels_path'] = label_path+f'{foldername}/{model_file}/ctxt_test_labels.json'
         config['data_config'][
-            'ctxt_train_labels_path'] = f'util/datasets/Schwartz_mouse_v2/labels/cagmates/{foldername}/ctxt_train_labels.json'
+            'ctxt_train_labels_path'] =label_path+f'{foldername}/{model_file}/ctxt_train_labels.json'
         #config['data_config']['new_threshold_path']=f'util/datasets/Schwartz_mouse_v2/labels/cagemates/3D_False_train_{id}/label_threshold.json'
-        generate_embeddings_reconstruction(config, train,test)
+        generate_embeddings_reconstruction(config, train,test,config_name=model_file)
 
 
 

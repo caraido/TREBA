@@ -41,6 +41,10 @@ class TrajectoryDataset(Dataset):
         else:
             data_config['labels'] = []
 
+        if 'seq_len' in data_config:
+            assert isinstance(data_config['seq_len'],int)
+            self._seq_len=data_config['seq_len']
+
         # Check for augmentations
         if 'augmentations' in data_config:
             assert isinstance(data_config['augmentations'], list)
@@ -127,6 +131,7 @@ class TrajectoryDataset(Dataset):
 
         if self.label_train_set:
             # TODO: need to move this out
+            print("labeling the train set.")
             if os.path.exists(train_save_path):
                 with open(train_save_path, 'rb') as myfile:
                     self.train_lf_labels = pickle.load(myfile)

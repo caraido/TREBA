@@ -182,6 +182,13 @@ class VQTripletTREBA_model(TREBA_model):
         elif self.stage >= 2 or not self.loss_params['consistency_loss_weight'] > 0:
             # Encode
             posterior = self.encode(states[:-1], actions=actions, labels=labels)
+
+            kld=Normal.kl_divergence(posterior,free_bits=0.0).detach()
+            self.log.metrics['kl_div_true']=torch.sum(kld)*50
+
+            kld=Normal.kl_divergence(posterior,free_bits=1/self.config['z_dim'])
+            self.log.losses['kl_div']=torch.sum(kld)*50
+
             if not embed:
                 # Compute the contextual embedding
                 z_ctxt = self.compute_context(ctxt_states, ctxt_actions, ctxt_labels_dict)
@@ -200,19 +207,22 @@ class VQTripletTREBA_model(TREBA_model):
                     loss_weight=self.config['triplet_loss_weight']
                 )
 
-            # Quantize
-            z_q_x_st, z_q_x,indices = self.codebook.straight_through(posterior.mean)
 
             # Compute quantization_loss
-            self.log.losses['quantization'] = compute_quantization_loss(
-                z_q_x,
-                posterior.mean,
-                self.config['commitment_cost'],
-                loss_weight=self.config['quantization_loss_weight']
-            )
-
-            # Decode
-            self.reset_policy(labels=labels, z=z_q_x_st)
+            if self.config['quantization_loss_weight']>0:
+                # Quantize
+                z_q_x_st, z_q_x, indices = self.codebook.straight_through(posterior.mean)
+                self.log.losses['quantization'] = compute_quantization_loss(
+                    z_q_x,
+                    posterior.mean,
+                    self.config['commitment_cost'],
+                    loss_weight=self.config['quantization_loss_weight']
+                )
+                z=z_q_x_st
+                self.reset_policy(labels=labels, z=z_q_x_st)
+            else:
+                z=posterior.mean
+                self.reset_policy(labels=labels, z=posterior.sample())
 
             # Compute reconstruction loss
             for t in range(actions.size(0)):
@@ -229,7 +239,7 @@ class VQTripletTREBA_model(TREBA_model):
                     lf = self.config['label_functions'][lf_idx]
                     lf_labels = labels_dict[lf_name]
                     self.log.losses["decoded_" + lf_name] = compute_decoding_loss(
-                        z_q_x_st,
+                        z,
                         lf_labels,
                         self.label_decoder_fc_decoding[lf_idx],
                         lf.categorical,
@@ -243,9 +253,10 @@ class VQTripletTREBA_model(TREBA_model):
             # Generate rollout for consistency loss.
             # Use the posterior to train here.
             if self.loss_params['consistency_loss_weight'] > 0:
+                z=posterior.sample() if self.config['quantization_loss_weight']==0 else z_q_x_st
                 self.reset_policy(
                     labels=labels,
-                    z=z_q_x_st,
+                    z=z,
                     temperature=self.loss_params['consistency_temperature']
                 )
 
@@ -290,5 +301,8 @@ class VQTripletTREBA_model(TREBA_model):
                         self.log.metrics['{}_true'.format(lf.name)] = torch.sum(rollout_lf_labels * lf_labels.cpu())
 
         if embed:
-            return self.log, indices, z_q_x_st,posterior.mean
+            if self.config['quantization_loss_weight']>0:
+                return self.log, indices, z_q_x_st,posterior.mean
+            else:
+                return self.log, posterior.mean
         return self.log

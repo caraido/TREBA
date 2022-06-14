@@ -40,15 +40,16 @@ def get_row_col(number):
 if __name__ =='__main__':
     #folder='3D_False_all'
     #idx=94
-    method='vq'
+    method='kmeans'
     ##cluster_path=f'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed/{folder}/clusters_15_{method}_embeddings_all.npy'
     #cluster_path=f'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/3D_False_train_{idx}/clusters_all.npy'
     #trajectories_path=f'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/3D_False_train_{idx}/original_all.npy'
-    mode=0 # 0 means many npys under different folders. 1 means one single file
-    root_folder = r'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed'
+    trajectories_path=f'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed/3D_False_all/original_all.npy'
+    mode=1 # 0 means many npys under different folders. 1 means one single file
+    root_folder = r'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed'
     save_folder= r''
     if mode:
-        path=os.path.join(root_folder,'3D_False_train_94','clusters_all.npy')
+        path=os.path.join(root_folder,'3D_False_all','clusters_15_kmeans_embeddings_all.npy')
         clusters=np.load(path)
     else:
         items=os.listdir(root_folder)
@@ -64,7 +65,7 @@ if __name__ =='__main__':
             trajectories.append(single_data)
         clusters=np.concatenate(clusters)
         trajectories=np.concatenate(trajectories)
-    save_folder='Schwartz_mouse_v2'
+    save_folder='Schwartz_mouse_v1'
     save_path=f'/home/roton2/PycharmProjects/TREBA/saved/{save_folder}/figs'
 
     save_type=f'clusters_traj_{method}'
@@ -73,7 +74,7 @@ if __name__ =='__main__':
         os.makedirs(save_path)
 
 
-    #trajectories=np.load(trajectories_path)
+    trajectories=np.load(trajectories_path)
     #clusters=np.load(cluster_path)
     downsample=25
     alpha=0.5
@@ -99,10 +100,10 @@ if __name__ =='__main__':
             min_x=np.minimum(min_x0,min_x)
             min_y=np.minimum(min_y0,min_y)
 
-    max_x=max_x*1
-    max_y=max_y*1
-    min_x=min_x*1
-    min_y=min_y*1
+    max_x=max_x*0.8
+    max_y=max_y*0.6
+    min_x=min_x*0.8
+    min_y=min_y*0.6
 
     pp=PdfPages(os.path.join(save_path,'all_clusters.pdf'))
 

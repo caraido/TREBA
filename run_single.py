@@ -37,9 +37,10 @@ parser.add_argument('--feature_extraction', type=str,
                     help='paths to trajectory data for feature extraction')
 parser.add_argument('--feature_names', type=str,
                     required=False, default=None,
-                    help='paths to save extracted features')                                        
+                    help='paths to save extracted features')
+# why did the programmer quit his job? He didnt get arrays
 args = parser.parse_args()
-args.index=6 # ix of the config file
+args.index=4 # idx of the config file
 args.device=1
 
 # Get JSON files

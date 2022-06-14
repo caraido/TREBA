@@ -90,7 +90,7 @@ def extract_features(exp_dir,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--exp_folder', type=str,
-                        required=True, default=None,
+                        required=False, default=None,
                         help='folder of experiments from which to load models')
     parser.add_argument('--save_dir', type=str,
                         required=False, default='saved',
@@ -103,6 +103,10 @@ if __name__ == "__main__":
                         help='paths to save extracted features')
     args = parser.parse_args()    
 
+    args.exp_folder='Schwartz_mouse'
+    args.save_dir='saved'
+    args.feature_extraction='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/cagemates/3D_False_train_231/original_all.npy'
+    args.feature_names='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/cagemates/3D_False_train_231'
     # Get exp_directory
     exp_dir = os.path.join(os.getcwd(), args.save_dir, args.exp_folder)
 

@@ -6,7 +6,7 @@ from matplotlib import gridspec
 import matplotlib.patches as mpatches
 from cluster_num_visualization import visualize_embeddings_in_2D
 from util.visualization.animation import draw_skeleton, find_maxmin,handle
-from util.datasets.Schwartz_mouse_v1.preprocess import alignment
+from util.datasets.Schwartz_mouse_v2.preprocess import alignment
 
 def single_alignment_2D(trajectory: np.ndarray, t_matrix, r_matrix):
     # here we need to make (x,y,1) from (x,y)
@@ -24,17 +24,17 @@ def single_alignment_2D(trajectory: np.ndarray, t_matrix, r_matrix):
 
 if __name__=='__main__':
     # get the path for the data
-    raw_data_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data'
-    reconstructed_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed'
+    raw_data_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/data'
+    reconstructed_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed'
     all_embeddings_path=os.path.join(reconstructed_path,'3D_False_all','embeddings_all.npy')
-    all_annot_path=os.path.join(reconstructed_path,'3D_False_all','clusters_15_gmm_embeddings_all.npy')
-    bodyparts_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/data/3D_False_bodyparts.pk'
+    all_annot_path=os.path.join(reconstructed_path,'3D_False_all','clusters_15_kmeans_embeddings_all.npy')
+    bodyparts_path='/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/data/3D_False_bodyparts.pk'
 
     session_id=392
     session_embeddings_path=os.path.join(reconstructed_path,f'3D_False_idx_{session_id}_test','embeddings_all.npy')
-    session_annot_path = os.path.join(reconstructed_path, f'3D_False_idx_{session_id}_test', 'clusters_15_gmm_embeddings_all.npy')
+    session_annot_path = os.path.join(reconstructed_path,f'3D_False_idx_{session_id}_test', 'clusters_15_kmeans_embeddings_all.npy')
 
-    tracking_path= os.path.join(raw_data_path, f'3D_False_idx_{session_id}_test.npz')
+    tracking_path= os.path.join(raw_data_path,f'3D_False_idx_{session_id}_test.npz')
 
     # load data
     all_embeddings=np.load(all_embeddings_path)
@@ -55,7 +55,7 @@ if __name__=='__main__':
     session_trackings=session_trackings[:,0,:] # take the first frame in the seq
 
     # downsample all embeddings and all annotation
-    downsample_rate=0.01 # default 0.01
+    downsample_rate=0.02 # default 0.01
     draw=np.random.choice(len(all_embeddings), int(len(all_embeddings)*downsample_rate),replace=False)
     all_embeddings=all_embeddings[draw,:]
     all_annot=all_annot[draw]
@@ -82,14 +82,14 @@ if __name__=='__main__':
                                s=2
                                )
     data_points=computer.transform(session_embeddings)
-    handles =[ mpatches.Patch(color=color_dict[i], label=str(i)) for i in range(15)]
+    handles =[ mpatches.Patch(color=color_dict[i], label=str(i)) for i in np.unique(session_annot)]
     ax2.legend(handles=handles,title='behaviors',loc=(1.02,0))
 
     ax3=fig.add_subplot(414)
-    sparse = [np.where(session_annot==x) for x in np.unique(session_annot)]
-    assert len(sparse)==15
+    sparse = dict([(x,np.where(session_annot==x)) for x in np.unique(session_annot)])
+    #assert len(sparse)==15
     lines=[]
-    for i, label in enumerate(sparse):
+    for i, label in sparse.items():
         line=ax3.eventplot(label,color=color_dict[i],linelength=20)
         lines.append(line)
     window_size= 10# unit: second

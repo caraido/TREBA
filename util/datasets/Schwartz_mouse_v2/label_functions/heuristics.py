@@ -70,6 +70,27 @@ class SkullBaseToTailBaseLength(LabelFunctionWrapper):
         else:
             return torch.mean(label_tensor.float())
 
+class SkullBaseToTailBaseLengthVar(LabelFunctionWrapper):
+    name='skullbase_to_tailbase_length'
+    def label_func(self, states, actions, true_label=None,full=False):
+        keypoints=transform_svd_to_keypoints(states.numpy()[:-1],
+                                             self.svd_computer,
+                                             self.mean,stack_agents=True) # TODO: check the last parameter
+        # do we need to unnormalize the keypoints?
+        #keypoints=keypoints.reshape(-1,len(self.bodyparts)/2,2)
+        skullbase_x=keypoints[:,self.bodyparts.index('skull_base_x')]
+        skullbase_y=keypoints[:,self.bodyparts.index('skull_base_y')]
+        tailbase_x=keypoints[:,self.bodyparts.index('tail_base_x')]
+        tailbase_y=keypoints[:,self.bodyparts.index('tail_base_y')]
+
+        distance=np.sqrt(np.square(skullbase_x-tailbase_x)+np.square(skullbase_y-tailbase_y))
+        label_tensor=torch.from_numpy(distance)
+        label_tensor=label_tensor.to(states.device)
+        if full:
+            return label_tensor
+        else:
+            return torch.var(label_tensor.float())
+
 
 class HeadBodyLengthRatio(LabelFunctionWrapper):
     name='head_body_ratio'

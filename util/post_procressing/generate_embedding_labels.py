@@ -44,15 +44,21 @@ if __name__=='__main_':
     #with open(save_name,'wb') as f:
     #    pk.dump(model,f)
 
-if __name__=='__main__':
+# apply the model on sessions/data
+if __name__=='__main_':
     method = 'gmm'
-    reconstructed_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/reconstructed'
-    cluster_model_path = f'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v1/cluster_models/3D_False_all/clusters_15_{method}_embeddings_all.pk'
-    session_ids=np.arange(0,24)
-    for idx in session_ids:
-        folder_name = f'3D_False_idx_{idx}_test'
+    n_clusters=15
+    run='run_8'
+    reconstructed_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/cagemates'
+    cluster_model_path = f'/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/cluster_models/3D_False_all/{run}/clusters_{n_clusters}_{method}_embeddings_all.pk'
+    #session_ids=np.arange(0,24)
+    items=os.listdir(reconstructed_path)
+    items=['3D_False_train_231']
+    for folder_name in items:
+    #for idx in session_ids:
+        #folder_name = f'3D_False_idx_{idx}_test'
         embeddings_name = 'embeddings_all.npy'
-        file_path = os.path.join(reconstructed_path, folder_name, embeddings_name)
+        file_path = os.path.join(reconstructed_path, folder_name, run,embeddings_name)
 
         embeddings = np.load(file_path)
         with open(cluster_model_path,'rb') as f:
@@ -66,7 +72,64 @@ if __name__=='__main__':
 
         clusters, model = generate_clusters(embeddings, n_clusters, method, model=model)
         save_name = 'clusters_' + str(n_clusters) + '_' + method + '_' + embeddings_name
-        save_path = os.path.join(reconstructed_path, folder_name, save_name)
-        print(f'saving clusters data of session index {idx}')
+        save_path = os.path.join(reconstructed_path, folder_name, run,save_name)
+        #print(f'saving clusters data of session index {idx}')
+        print(f'saving clusters data of session {folder_name}')
         np.save(save_path,clusters)
 
+# generate cluster model
+if __name__=='__main_':
+    method = 'gmm'
+    n_clusters=15
+    embeddings_name='embeddings_all.npy'
+    reconstructed_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed'
+    model_path= '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/cluster_models'
+
+    items=os.listdir(reconstructed_path)
+    items=['3D_False_all']
+    for item in items:
+        embedding_path=os.path.join(reconstructed_path,item,embeddings_name)
+        embeddings=np.load(embedding_path)
+        save_name = 'clusters_' + str(n_clusters) + '_' + method + '_' + embeddings_name
+        clusters, model = generate_clusters(embeddings, n_clusters, method)
+        save_path=os.path.join(reconstructed_path, item, save_name)
+        np.save(save_path, clusters)
+
+        model_name='clusters_' + str(n_clusters) + '_' + method + '_embeddings_all.pk'
+        model_save_path=os.path.join(model_path, item)
+        if not os.path.exists(model_save_path):
+            os.makedirs(model_save_path)
+        model_save_path=os.path.join(model_save_path, model_name)
+        with open(model_save_path, 'wb') as f:
+            pk.dump(model,f)
+
+# generate cluster model
+if __name__=='__main__':
+    method = 'kmeans'
+    n_clusters=15
+    downsample_rate=1
+    embeddings_name='embeddings_all.npy'
+    reconstructed_path = '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/reconstructed/all/3D_False_all'
+    model_path= '/home/roton2/PycharmProjects/TREBA/util/datasets/Schwartz_mouse_v2/cluster_models/3D_False_all'
+
+    items=os.listdir(reconstructed_path)
+    #items=['3D_False_all']
+    for item in items:
+        if os.path.isdir(os.path.join(reconstructed_path,item)):
+            embedding_path=os.path.join(reconstructed_path,item,embeddings_name)
+            embeddings=np.load(embedding_path)
+            draw=np.random.choice(len(embeddings), int(len(embeddings)*downsample_rate),replace=False)
+            embeddings_run=embeddings#[draw]
+            save_name = 'clusters_' + str(n_clusters) + '_' + method + '_' + embeddings_name
+            _, model = generate_clusters(embeddings_run, n_clusters, method)
+            clusters,_=generate_clusters(embeddings,n_clusters,method,model=model)
+            save_path=os.path.join(reconstructed_path, item, save_name)
+            np.save(save_path, clusters)
+
+            model_name='clusters_' + str(n_clusters) + '_' + method + '_embeddings_all.pk'
+            model_save_path=os.path.join(model_path, item)
+            if not os.path.exists(model_save_path):
+                os.makedirs(model_save_path)
+            model_save_path=os.path.join(model_save_path, model_name)
+            with open(model_save_path, 'wb') as f:
+                pk.dump(model,f)
